@@ -154,6 +154,15 @@ def list_expenses():
         return [to_dict(r, conn) for r in rows]
 
 
+@app.get("/expenses/{expense_id}")
+def get_expense(expense_id: int):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+        return to_dict(row, conn)
+
+
 def to_dict(row, conn):
     d = dict(row)
     d["has_receipt"] = bool(d["has_receipt"])  # SQLite는 0/1로 저장하므로 True/False로 변환
