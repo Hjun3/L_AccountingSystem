@@ -1,0 +1,13 @@
+# API 키 등 비밀 정보 (절대 GitHub에 올리지 않음)
+.env
+
+# 파이썬
+__pycache__/
+.venv/
+
+# SQLite DB 파일 (각자 로컬에서 생성)
+*.db
+
+# 프론트엔드
+node_modules/
+dist/
