@@ -51,6 +51,19 @@ def init_db():
             )
             """
         )
+        # 총무 결정 이력: 확정/소명/취소를 누를 때마다 한 줄씩 쌓인다 (지우거나 고치지 않음)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS decision_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                expense_id INTEGER NOT NULL,
+                from_status TEXT NOT NULL,
+                to_status TEXT NOT NULL,
+                explanation TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
 
 
 init_db()
@@ -97,12 +110,12 @@ def create_expense(expense: ExpenseIn):
             ),
         )
         row = conn.execute("SELECT * FROM expenses WHERE id = ?", (cur.lastrowid,)).fetchone()
-    return to_dict(row)
+        return to_dict(row, conn)
 
 
 class DecisionIn(BaseModel):
-    """총무의 결정: 확정 또는 소명 (소명이면 소명 내용 필수)"""
-    final_status: Literal["확정", "소명"]
+    """총무의 결정: 확정, 소명(소명 내용 필수), 대기(= 결정 취소)"""
+    final_status: Literal["확정", "소명", "대기"]
     explanation: str = ""
 
 
@@ -111,27 +124,44 @@ def decide_expense(expense_id: int, decision: DecisionIn):
     explanation = decision.explanation.strip()
     if decision.final_status == "소명" and not explanation:
         raise HTTPException(status_code=400, detail="소명 내용을 입력하세요.")
+    # 소명일 때만 소명 내용을 남기고, 확정이나 취소면 비운다
+    new_explanation = explanation if decision.final_status == "소명" else None
 
     with get_conn() as conn:
-        cur = conn.execute(
-            "UPDATE expenses SET final_status = ?, explanation = ? WHERE id = ?",
-            # 확정이면 소명 내용은 비운다
-            (decision.final_status, explanation if decision.final_status == "소명" else None, expense_id),
-        )
-        if cur.rowcount == 0:
+        old = conn.execute("SELECT final_status FROM expenses WHERE id = ?", (expense_id,)).fetchone()
+        if old is None:
             raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+        conn.execute(
+            "UPDATE expenses SET final_status = ?, explanation = ? WHERE id = ?",
+            (decision.final_status, new_explanation, expense_id),
+        )
+        conn.execute(
+            """
+            INSERT INTO decision_logs (expense_id, from_status, to_status, explanation, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (expense_id, old["final_status"], decision.final_status, new_explanation,
+             datetime.now().isoformat(timespec="seconds")),
+        )
         row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
-    return to_dict(row)
+        return to_dict(row, conn)
 
 
 @app.get("/expenses")
 def list_expenses():
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM expenses ORDER BY id DESC").fetchall()
-    return [to_dict(r) for r in rows]
+        return [to_dict(r, conn) for r in rows]
 
 
-def to_dict(row):
+def to_dict(row, conn):
     d = dict(row)
     d["has_receipt"] = bool(d["has_receipt"])  # SQLite는 0/1로 저장하므로 True/False로 변환
+    # 이 지출의 결정 이력을 오래된 순서로 붙여서 보낸다
+    logs = conn.execute(
+        "SELECT from_status, to_status, explanation, created_at FROM decision_logs "
+        "WHERE expense_id = ? ORDER BY id",
+        (d["id"],),
+    ).fetchall()
+    d["logs"] = [dict(log) for log in logs]
     return d
