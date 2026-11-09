@@ -2,6 +2,7 @@ import { BrowserRouter, NavLink, Route, Routes } from 'react-router-dom'
 import ExpenseDetailPage from './pages/ExpenseDetailPage'
 import ExpenseListPage from './pages/ExpenseListPage'
 import ExpenseNewPage from './pages/ExpenseNewPage'
+import RegulationPage from './pages/RegulationPage'
 
 // 상단 메뉴: 현재 보고 있는 페이지는 굵게 표시
 function NavMenu() {
@@ -10,6 +11,7 @@ function NavMenu() {
     <nav style={{ display: 'flex', gap: 16, borderBottom: '1px solid gray', paddingBottom: 8 }}>
       <NavLink to="/expenses/new" style={style}>지출 등록</NavLink>
       <NavLink to="/expenses" end style={style}>지출 목록</NavLink>
+      <NavLink to="/regulation" style={style}>규정 보기</NavLink>
     </nav>
   )
 }
@@ -26,6 +28,7 @@ function App() {
           <Route path="/expenses" element={<ExpenseListPage />} />
           <Route path="/expenses/new" element={<ExpenseNewPage />} />
           <Route path="/expenses/:id" element={<ExpenseDetailPage />} />
+          <Route path="/regulation" element={<RegulationPage />} />
         </Routes>
       </div>
     </BrowserRouter>

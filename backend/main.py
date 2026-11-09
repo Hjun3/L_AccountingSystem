@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from ai_check import AICheckError, check_expense
+from ai_check import REGULATION_PATH, AICheckError, check_expense
 
 DB_PATH = Path(__file__).parent / "expenses.db"
 DEFAULT_ORG_ID = "default"  # 지금은 조직이 하나뿐이라 기본값 사용
@@ -174,3 +174,9 @@ def to_dict(row, conn):
     ).fetchall()
     d["logs"] = [dict(log) for log in logs]
     return d
+
+
+@app.get("/regulation")
+def get_regulation():
+    # AI 점검에 실제로 쓰이는 규정 파일을 그대로 보여준다
+    return {"file_name": REGULATION_PATH.name, "content": REGULATION_PATH.read_text(encoding="utf-8")}
