@@ -48,7 +48,10 @@ function App() {
         body: JSON.stringify({ ...form, amount: Number(form.amount) }),
       })
       if (!res.ok) {
-        setError('저장에 실패했습니다. 입력값을 확인하세요.')
+        // AI 점검 실패(502) 등 서버가 보낸 에러 이유를 그대로 보여준다
+        const data = await res.json().catch(() => ({}))
+        const detail = typeof data.detail === 'string' ? data.detail : '입력값을 확인하세요.'
+        setError(`저장에 실패했습니다. ${detail}`)
         return
       }
       setForm(EMPTY_FORM)

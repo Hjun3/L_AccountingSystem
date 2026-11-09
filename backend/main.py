@@ -2,9 +2,11 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from ai_check import AICheckError, check_expense
 
 DB_PATH = Path(__file__).parent / "expenses.db"
 DEFAULT_ORG_ID = "default"  # 지금은 조직이 하나뿐이라 기본값 사용
@@ -27,7 +29,6 @@ def get_conn():
 
 
 def init_db():
-    # AI 점검(ai_*) 칸은 2단계에서 채우므로 지금은 비워둔다
     with get_conn() as conn:
         conn.execute(
             """
@@ -66,12 +67,19 @@ class ExpenseIn(BaseModel):
 
 @app.post("/expenses")
 def create_expense(expense: ExpenseIn):
+    # 저장 전에 AI 점검을 먼저 한다. 실패하면 저장하지 않고 에러를 돌려준다.
+    try:
+        result = check_expense(expense.model_dump())
+    except AICheckError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
     with get_conn() as conn:
         cur = conn.execute(
             """
             INSERT INTO expenses
-                (org_id, date, amount, event_name, category, description, has_receipt, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (org_id, date, amount, event_name, category, description, has_receipt,
+                 ai_status, ai_clause, ai_reason, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 DEFAULT_ORG_ID,
@@ -81,6 +89,9 @@ def create_expense(expense: ExpenseIn):
                 expense.category,
                 expense.description,
                 int(expense.has_receipt),
+                result["status"],
+                result["clause"],
+                result["reason"],
                 datetime.now().isoformat(timespec="seconds"),
             ),
         )

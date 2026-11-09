@@ -1,0 +1,10 @@
+[
+  {"date": "2026-03-05", "amount": 350000, "event_name": "개강총회", "category": "식비", "description": "피자 20판 (참석자 40명)", "has_receipt": true},
+  {"date": "2026-03-05", "amount": 120000, "event_name": "개강총회", "category": "식비", "description": "맥주 및 소주 구입", "has_receipt": true},
+  {"date": "2026-03-12", "amount": 45000, "event_name": "학생회 정기회의", "category": "식비", "description": "회의 간식 (참석자 6명)", "has_receipt": false},
+  {"date": "2026-03-20", "amount": 420000, "event_name": "MT", "category": "물품비", "description": "블루투스 스피커 1대 구입 (견적 1곳)", "has_receipt": true},
+  {"date": "2026-04-02", "amount": 600000, "event_name": "체육대회", "category": "대관비", "description": "운동장 대관료", "has_receipt": true},
+  {"date": "2026-04-10", "amount": 100000, "event_name": "중간고사 간식행사", "category": "기타", "description": "문화상품권 10장 구입", "has_receipt": true},
+  {"date": "2026-04-15", "amount": 30000, "event_name": "학생회 운영", "category": "물품비", "description": "A4 용지, 볼펜 등 사무용품", "has_receipt": true},
+  {"date": "2026-05-08", "amount": 50000, "event_name": "스승의 날", "category": "기타", "description": "학생회장 개인 생일 선물", "has_receipt": true}
+]
