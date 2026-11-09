@@ -20,16 +20,24 @@ MVP 이후 추가 후보 (MVP 완성 전에는 손대지 않음)
 - 영수증 사진으로 지출 자동 입력
 - 감사 제출용 리포트 생성
 
+## 화면 구성 (frontend/src/pages/)
+- 대시보드 (/): 다가오는 일정, AI 점검 결과 개수, 결정 대기 중인 주의·위반 건, 사업별·비목별 합계
+- 지출 등록 (/expenses/new): 저장하면 AI 점검 후 상세 페이지로 이동
+- 지출 목록 (/expenses): 점검 결과 필터, 목록에서 바로 확정/소명
+- 지출 상세 (/expenses/:id): 지출 정보, AI 점검 내용, 총무 결정과 이력
+- 캘린더 (/calendar): 날짜별 지출(점검 결과 색)과 일정(사업/감사/기타), 일정 등록·삭제
+- 규정 보기 (/regulation): AI가 쓰는 규정 파일 내용
+
 ## 지금 만들지 않는 것
 - 로그인, 회원가입, 권한 관리
 - 여러 조직을 관리하는 화면
 (단, 나중에 다른 학과로 확장할 수 있도록 데이터에는 org_id 필드를 둔다.)
 
 ## 기술 스택
-- 프론트엔드: React
+- 프론트엔드: React, react-router-dom(페이지 이동)
 - 백엔드: Python, FastAPI
 - DB: SQLite
-- LLM API: [미정]
+- LLM API: OpenAI (모델은 backend/.env의 OPENAI_MODEL로 변경)
 - 배포: [미정]
 
 ## 폴더 구조
@@ -49,7 +57,7 @@ MVP 이후 추가 후보 (MVP 완성 전에는 손대지 않음)
 - date: 지출 날짜
 - amount: 금액
 - event_name: 사업명 (예: 개강총회)
-- category: 지출 항목 (예: 식비, 물품비)
+- category: 지출 항목 = 비목 (예: 수용비, 급량비)
 - description: 지출 내용
 - has_receipt: 증빙 유무
 - ai_status: AI 점검 결과 (적합 / 주의 / 위반)
@@ -67,6 +75,16 @@ MVP 이후 추가 후보 (MVP 완성 전에는 손대지 않음)
 - to_status: 바뀐 뒤 결정 (대기 = 취소)
 - explanation: 소명 내용 (소명일 때만)
 - created_at: 기록 시각
+
+## 데이터 구조 (schedules 테이블)
+캘린더 일정. 지출과 별개로 총무가 직접 등록한다.
+- id: 고유 번호
+- org_id: 소속 조직
+- date: 날짜
+- kind: 종류 (사업 / 감사 / 기타)
+- title: 제목
+- memo: 메모
+- created_at: 등록 시각
 
 ## AI 점검 출력 형식
 LLM은 반드시 아래 JSON만 반환하도록 프롬프트를 작성하고, 백엔드에서 파싱 실패 시 에러를 표시한다.
