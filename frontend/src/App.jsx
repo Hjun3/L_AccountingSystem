@@ -77,7 +77,7 @@ function App() {
           사업명 <input name="event_name" placeholder="예: 개강총회" value={form.event_name} onChange={handleChange} required />
         </label>
         <label>
-          지출 항목 <input name="category" placeholder="예: 식비, 물품비" value={form.category} onChange={handleChange} required />
+          지출 항목 <input name="category" placeholder="예: 수용비, 급량비" value={form.category} onChange={handleChange} required />
         </label>
         <label>
           지출 내용 <input name="description" value={form.description} onChange={handleChange} required />
