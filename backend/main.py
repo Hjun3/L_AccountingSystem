@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -96,6 +97,30 @@ def create_expense(expense: ExpenseIn):
             ),
         )
         row = conn.execute("SELECT * FROM expenses WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return to_dict(row)
+
+
+class DecisionIn(BaseModel):
+    """총무의 결정: 확정 또는 소명 (소명이면 소명 내용 필수)"""
+    final_status: Literal["확정", "소명"]
+    explanation: str = ""
+
+
+@app.patch("/expenses/{expense_id}")
+def decide_expense(expense_id: int, decision: DecisionIn):
+    explanation = decision.explanation.strip()
+    if decision.final_status == "소명" and not explanation:
+        raise HTTPException(status_code=400, detail="소명 내용을 입력하세요.")
+
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE expenses SET final_status = ?, explanation = ? WHERE id = ?",
+            # 확정이면 소명 내용은 비운다
+            (decision.final_status, explanation if decision.final_status == "소명" else None, expense_id),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+        row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
     return to_dict(row)
 
 

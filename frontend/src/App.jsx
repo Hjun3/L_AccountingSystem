@@ -15,6 +15,59 @@ const EMPTY_FORM = {
   has_receipt: true,
 }
 
+// 지출 한 건에 대한 총무 결정 칸
+// 대기 상태면 확정/소명 입력을 보여주고, 결정된 뒤에는 결과와 '다시 결정' 버튼을 보여준다
+function DecisionCell({ expense, onSaved }) {
+  const [editing, setEditing] = useState(expense.final_status === '대기')
+  const [explanation, setExplanation] = useState(expense.explanation || '')
+  const [error, setError] = useState('')
+
+  async function save(finalStatus) {
+    setError('')
+    try {
+      const res = await fetch(`${API_URL}/expenses/${expense.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ final_status: finalStatus, explanation }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError(typeof data.detail === 'string' ? data.detail : '저장에 실패했습니다.')
+        return
+      }
+      setEditing(false)
+      onSaved()
+    } catch {
+      setError('서버에 연결할 수 없습니다.')
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div>
+        <b>{expense.final_status}</b>
+        {expense.explanation && <div>소명: {expense.explanation}</div>}
+        <button onClick={() => setEditing(true)}>다시 결정</button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 4 }}>
+      <div>현재: {expense.final_status}</div>
+      <button onClick={() => save('확정')}>확정</button>
+      <textarea
+        placeholder="소명 내용"
+        rows={2}
+        value={explanation}
+        onChange={(e) => setExplanation(e.target.value)}
+      />
+      <button onClick={() => save('소명')}>소명 저장</button>
+      {error && <span style={{ color: 'red' }}>{error}</span>}
+    </div>
+  )
+}
+
 function App() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [expenses, setExpenses] = useState([])
@@ -124,7 +177,9 @@ function App() {
               <td style={{ color: STATUS_COLORS[exp.ai_status], fontWeight: 'bold' }}>{exp.ai_status}</td>
               <td>{exp.ai_clause}</td>
               <td>{exp.ai_reason}</td>
-              <td>{exp.final_status}</td>
+              <td>
+                <DecisionCell expense={exp} onSaved={loadExpenses} />
+              </td>
             </tr>
           ))}
         </tbody>
