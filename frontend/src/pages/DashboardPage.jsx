@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, STATUS_COLORS } from '../common'
+import { api, KIND_COLORS, STATUS_COLORS } from '../common'
 
 // 지출 목록을 기준(사업명, 비목 등)별로 묶어 금액 합계와 건수를 구한다
 // 예: sumBy(expenses, 'category') -> [{ name: '급량비', total: 530000, count: 2 }, ...]
@@ -40,11 +40,15 @@ function SummaryTable({ title, rows }) {
 // 대시보드: 전체 지출 현황과 AI 점검/총무 결정 상황을 한눈에 요약
 function DashboardPage() {
   const [expenses, setExpenses] = useState(null)
+  const [schedules, setSchedules] = useState([])
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api('/expenses')
-      .then(setExpenses)
+    Promise.all([api('/expenses'), api('/schedules')])
+      .then(([exps, schs]) => {
+        setExpenses(exps)
+        setSchedules(schs)
+      })
       .catch((e) => setError(e.message))
   }, [])
 
@@ -56,6 +60,9 @@ function DashboardPage() {
   const waiting = expenses.filter((exp) => exp.final_status === '대기')
   // 주의/위반인데 아직 총무가 결정하지 않은 건: 감사 전에 먼저 봐야 할 것
   const needCheck = waiting.filter((exp) => exp.ai_status === '주의' || exp.ai_status === '위반')
+  // 오늘 이후 일정 중 가까운 5개 (날짜 문자열은 'YYYY-MM-DD'라 글자 비교로 날짜 비교가 됨)
+  const todayString = new Date().toLocaleDateString('sv') // 'sv' 형식이 YYYY-MM-DD
+  const upcoming = schedules.filter((s) => s.date >= todayString).slice(0, 5)
 
   return (
     <div>
@@ -64,6 +71,19 @@ function DashboardPage() {
       <p>
         총 지출 <b>{expenses.length}건</b>, <b>{total.toLocaleString()}원</b>
       </p>
+
+      <h3>다가오는 일정</h3>
+      {upcoming.length === 0 ? (
+        <p>예정된 일정이 없습니다. <Link to="/calendar">캘린더에서 추가</Link></p>
+      ) : (
+        <ul>
+          {upcoming.map((s) => (
+            <li key={s.id}>
+              {s.date} <span style={{ color: KIND_COLORS[s.kind] }}>[{s.kind}]</span> {s.title}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <h3>AI 점검 결과</h3>
       <div style={{ display: 'flex', gap: 24, fontSize: 18 }}>

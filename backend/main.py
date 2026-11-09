@@ -51,6 +51,20 @@ def init_db():
             )
             """
         )
+        # 캘린더 일정: 사업 일정, 감사 일정 등 (지출과 별개로 총무가 직접 등록)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schedules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                title TEXT NOT NULL,
+                memo TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         # 총무 결정 이력: 확정/소명/취소를 누를 때마다 한 줄씩 쌓인다 (지우거나 고치지 않음)
         conn.execute(
             """
@@ -180,3 +194,42 @@ def to_dict(row, conn):
 def get_regulation():
     # AI 점검에 실제로 쓰이는 규정 파일을 그대로 보여준다
     return {"file_name": REGULATION_PATH.name, "content": REGULATION_PATH.read_text(encoding="utf-8")}
+
+
+class ScheduleIn(BaseModel):
+    """캘린더 일정 입력값"""
+    date: str
+    kind: Literal["사업", "감사", "기타"]
+    title: str
+    memo: str = ""
+
+
+@app.get("/schedules")
+def list_schedules():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM schedules ORDER BY date, id").fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.post("/schedules")
+def create_schedule(schedule: ScheduleIn):
+    title = schedule.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="일정 제목을 입력하세요.")
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO schedules (org_id, date, kind, title, memo, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (DEFAULT_ORG_ID, schedule.date, schedule.kind, title, schedule.memo.strip(),
+             datetime.now().isoformat(timespec="seconds")),
+        )
+        row = conn.execute("SELECT * FROM schedules WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return dict(row)
+
+
+@app.delete("/schedules/{schedule_id}")
+def delete_schedule(schedule_id: int):
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM schedules WHERE id = ?", (schedule_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="해당 일정을 찾을 수 없습니다.")
+    return {"deleted": schedule_id}
