@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 
 const API_URL = 'http://localhost:8000'
 
+// AI 점검 결과별 글자색 (한눈에 구분되도록)
+const STATUS_COLORS = { 적합: 'green', 주의: 'darkorange', 위반: 'red' }
+
 // 폼의 처음 상태 (저장 후 이 값으로 되돌림)
 const EMPTY_FORM = {
   date: '',
@@ -91,6 +94,9 @@ function App() {
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
       <h2>지출 목록</h2>
+      <p style={{ color: 'gray' }}>
+        ※ AI 점검은 참고용이며, 최종 판단은 총무가 합니다. 현재 점검 기준은 시연용 임시 규정입니다.
+      </p>
       <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%' }}>
         <thead>
           <tr>
@@ -100,6 +106,9 @@ function App() {
             <th>내용</th>
             <th>금액</th>
             <th>증빙</th>
+            <th>AI 점검</th>
+            <th>근거 조항</th>
+            <th>판단 이유</th>
             <th>총무 결정</th>
           </tr>
         </thead>
@@ -112,6 +121,9 @@ function App() {
               <td>{exp.description}</td>
               <td>{exp.amount.toLocaleString()}원</td>
               <td>{exp.has_receipt ? '있음' : '없음'}</td>
+              <td style={{ color: STATUS_COLORS[exp.ai_status], fontWeight: 'bold' }}>{exp.ai_status}</td>
+              <td>{exp.ai_clause}</td>
+              <td>{exp.ai_reason}</td>
               <td>{exp.final_status}</td>
             </tr>
           ))}
