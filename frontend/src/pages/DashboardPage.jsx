@@ -4,7 +4,7 @@ import { api, KIND_COLORS, termQuery, useTerm } from '../common'
 import { BarList, BudgetBars, MonthBars } from '../components/Charts'
 import MiniCalendar from '../components/MiniCalendar'
 import StatusBadge from '../components/StatusBadge'
-import TodoList from '../components/TodoList'
+import DashboardTodos from '../components/DashboardTodos'
 
 // 지출을 기준(사업명, 비목 등)별로 묶어 합계를 구한다. 금액 큰 순서.
 function sumBy(expenses, key) {
@@ -155,25 +155,11 @@ function DashboardPage() {
             <h3>챙길 것 <span className="tnum" style={{ color: 'var(--bad)' }}>{todoCount || ''}</span></h3>
             <span className="muted">AI가 알려 준 할 일. 끝내면 체크하세요.</span>
           </div>
-          <div className="card" style={{ padding: '4px 20px', marginBottom: 0, flex: 1 }}>
-            {withTodos.length === 0 ? (
-              <p className="muted" style={{ padding: '12px 0' }}>남은 할 일이 없습니다.</p>
-            ) : (
-              withTodos.slice(0, 5).map((exp, i) => (
-                <div key={exp.id} style={{ padding: '12px 0', borderTop: i ? '1px solid var(--line)' : 'none' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                    <Link to={`/expenses/${exp.id}`} title={exp.description} style={{ color: 'var(--text)', fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <StatusBadge status={exp.ai_status} /> {exp.event_name} · {exp.description}
-                    </Link>
-                    <span className="tnum muted" style={{ whiteSpace: 'nowrap' }}>{exp.amount.toLocaleString()}원</span>
-                  </div>
-                  <div style={{ marginTop: 6, paddingLeft: 14, display: 'grid', gap: 4 }}>
-                    <TodoList expense={exp} onChanged={load} showDone={false} />
-                  </div>
-                </div>
-              ))
-            )}
-            {withTodos.length > 5 && <p className="muted" style={{ paddingBottom: 8 }}>외 {withTodos.length - 5}건은 지출 목록에서 확인하세요.</p>}
+          {/* 카드 높이는 오른쪽 칸에 맞추고, 넘치면 카드 안에서 스크롤한다 */}
+          <div className="card" style={{ padding: 0, marginBottom: 0, flex: 1, position: 'relative', minHeight: 320 }}>
+            <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: '4px 20px' }}>
+              <DashboardTodos expenses={expenses} onChanged={load} />
+            </div>
           </div>
         </section>
 

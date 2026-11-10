@@ -110,7 +110,7 @@ td, .num, .tnum { font-variant-numeric: tabular-nums; }  /* .tnum: 정렬은 그
   .sidebar .group { display: none; }
   .sidebar .me { margin-top: 10px; }
   .content { padding: 20px 16px 40px; }
-  .dash-top { grid-template-columns: 1fr !important; }  /* 대시보드 위쪽 두 칸을 한 줄씩 */
+  .dash-top { grid-template-columns: minmax(0, 1fr) !important; }  /* 대시보드 위쪽 두 칸을 한 줄씩 */
 }
 
 /* ---------- 자주 쓰는 모양 ---------- */
