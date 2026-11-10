@@ -28,6 +28,16 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 # 요청마다 로그인·권한을 확인한다 (auth.py)
 app.middleware("http")(auth.auth_middleware)
 
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    """브라우저에 기본 보안 규칙을 알려 주는 응답 헤더"""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"  # 사진이라고 올린 파일을 브라우저가 다른 형식(예: 웹페이지)으로 실행하지 않게
+    response.headers["X-Frame-Options"] = "DENY"  # 다른 사이트가 이 사이트를 몰래 화면 안에 넣지 못하게
+    response.headers["Referrer-Policy"] = "same-origin"
+    return response
+
 # React 개발 서버(5173 포트)에서 이 API를 호출할 수 있도록 허용.
 # 로그인 쿠키를 주고받도록 allow_credentials를 켠다.
 # 이 설정을 로그인 확인보다 나중에 추가해야 바깥쪽에서 동작해서, '로그인 필요' 응답에도 허용 정보가 붙는다.
@@ -204,6 +214,17 @@ class ExpenseIn(BaseModel):
     category: str
     description: str
     has_receipt: bool
+
+
+async def read_limited(file: UploadFile, limit: int = MAX_UPLOAD_SIZE) -> bytes:
+    """업로드 파일을 1MB씩 읽다가 제한을 넘으면 바로 멈춘다. (아주 큰 파일로 서버 메모리를 채우는 공격 방지)"""
+    chunks, size = [], 0
+    while chunk := await file.read(1024 * 1024):
+        size += len(chunk)
+        if size > limit:
+            raise HTTPException(status_code=400, detail=f"파일은 {limit // (1024 * 1024)}MB 이하만 올릴 수 있습니다.")
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def actor_name():
@@ -462,9 +483,7 @@ async def upload_attachment(expense_id: int, file: UploadFile = File(...)):
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="사진(jpg, png, heic, webp) 또는 PDF 파일만 올릴 수 있습니다.")
-    content = await file.read()
-    if len(content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=400, detail="파일은 10MB 이하만 올릴 수 있습니다.")
+    content = await read_limited(file)
 
     with get_conn() as conn:
         expense = get_active_expense(conn, expense_id)
@@ -515,9 +534,7 @@ async def read_receipt_photo(file: UploadFile = File(...)):
     ext = Path(file.filename or "").suffix.lower()
     if ext not in RECEIPT_MIME_TYPES:
         raise HTTPException(status_code=400, detail="영수증 읽기는 jpg, png, webp 사진만 됩니다. (아이폰 HEIC는 설정에서 '높은 호환성'으로 찍어 주세요)")
-    content = await file.read()
-    if len(content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=400, detail="파일은 10MB 이하만 올릴 수 있습니다.")
+    content = await read_limited(file)
     try:
         return read_receipt(content, ext)
     except AICheckError as e:
@@ -544,7 +561,7 @@ async def import_bank_excel(file: UploadFile = File(...), password: str = Form("
     if Path(file.filename or "").suffix.lower() != ".xlsx":
         raise HTTPException(status_code=400, detail="xlsx 엑셀 파일만 올릴 수 있습니다.")
     try:
-        transactions = parse_transactions(await file.read(), password)
+        transactions = parse_transactions(await read_limited(file), password)
     except BankImportError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -60,6 +60,11 @@ def check_password_rule(password: str):
         raise HTTPException(status_code=400, detail=f"비밀번호는 {MIN_PASSWORD_LENGTH}자 이상이어야 합니다.")
 
 
+def token_hash(token: str | None) -> str:
+    """세션 토큰은 DB에 원문 대신 해시로 저장한다. DB 파일이 새어 나가도 그 값으로는 로그인할 수 없다."""
+    return hashlib.sha256((token or "").encode()).hexdigest()
+
+
 # ---------- DB ----------
 
 def init_auth_tables(conn):
@@ -142,7 +147,7 @@ async def auth_middleware(request: Request, call_next):
             row = conn.execute(
                 "SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id "
                 "WHERE s.token = ? AND s.expires_at > ? AND u.is_active = 1",
-                (token, now_text()),
+                (token_hash(token), now_text()),
             ).fetchone()
             user = public_user(row) if row else None
     if user is None:
@@ -187,7 +192,7 @@ def login(body: LoginIn, response: Response):
         token = secrets.token_urlsafe(32)
         expires = (datetime.now() + timedelta(days=SESSION_DAYS)).isoformat(timespec="seconds")
         conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (now_text(),))  # 만료된 세션 정리
-        conn.execute("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)", (token, row["id"], expires))
+        conn.execute("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)", (token_hash(token), row["id"], expires))
     response.set_cookie(
         COOKIE_NAME, token, max_age=SESSION_DAYS * 86400,
         httponly=True,  # 자바스크립트에서 쿠키를 못 읽게 함 (해킹된 스크립트가 토큰을 훔치지 못하게)
@@ -200,7 +205,7 @@ def login(body: LoginIn, response: Response):
 @router.post("/auth/logout")
 def logout(request: Request, response: Response):
     with get_conn() as conn:
-        conn.execute("DELETE FROM sessions WHERE token = ?", (request.cookies.get(COOKIE_NAME),))
+        conn.execute("DELETE FROM sessions WHERE token = ?", (token_hash(request.cookies.get(COOKIE_NAME)),))
     response.delete_cookie(COOKIE_NAME)
     return {"ok": True}
 
@@ -228,7 +233,7 @@ def change_password(body: PasswordIn, request: Request):
             (hash_password(body.new_password), user["id"]),
         )
         # 다른 기기에 로그인된 세션은 끊는다 (지금 쓰는 세션만 남김)
-        conn.execute("DELETE FROM sessions WHERE user_id = ? AND token != ?", (user["id"], request.cookies.get(COOKIE_NAME)))
+        conn.execute("DELETE FROM sessions WHERE user_id = ? AND token != ?", (user["id"], token_hash(request.cookies.get(COOKIE_NAME))))
     return {"ok": True}
 
 
