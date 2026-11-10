@@ -6,13 +6,14 @@ import DashboardPage from './pages/DashboardPage'
 import ExpenseDetailPage from './pages/ExpenseDetailPage'
 import ExpenseListPage from './pages/ExpenseListPage'
 import ExpenseNewPage from './pages/ExpenseNewPage'
+import FormPage from './pages/FormPage'
 import RegulationPage from './pages/RegulationPage'
 
 // 상단 메뉴: 현재 보고 있는 페이지는 굵게 표시
 function NavMenu() {
   const style = ({ isActive }) => ({ fontWeight: isActive ? 'bold' : 'normal' })
   return (
-    <nav style={{ display: 'flex', gap: 16, borderBottom: '1px solid gray', paddingBottom: 8 }}>
+    <nav className="no-print" style={{ display: 'flex', gap: 16, borderBottom: '1px solid gray', paddingBottom: 8 }}>
       <NavLink to="/" end style={style}>대시보드</NavLink>
       <NavLink to="/expenses/new" style={style}>지출 등록</NavLink>
       <NavLink to="/expenses/import" style={style}>거래내역 불러오기</NavLink>
@@ -29,7 +30,7 @@ function App() {
   return (
     <BrowserRouter>
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: 16 }}>
-        <h1>학생회 회계 점검 동료</h1>
+        <h1 className="no-print">학생회 회계 점검 동료</h1>
         <NavMenu />
         <Routes>
           <Route path="/" element={<DashboardPage />} />
@@ -37,6 +38,7 @@ function App() {
           <Route path="/expenses/new" element={<ExpenseNewPage />} />
           <Route path="/expenses/import" element={<BankImportPage />} />
           <Route path="/expenses/:id" element={<ExpenseDetailPage />} />
+          <Route path="/expenses/:id/forms/:kind" element={<FormPage />} />
           <Route path="/budget" element={<BudgetPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/regulation" element={<RegulationPage />} />

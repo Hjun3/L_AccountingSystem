@@ -36,6 +36,10 @@ function ExpenseDetailPage() {
       <h3>지출 정보</h3>
       <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse' }}>
         <tbody>
+          <tr><th>서류 만들기</th><td>
+            <Link to={`/expenses/${expense.id}/forms/sapil`}>사필영수증</Link> ·{' '}
+            <Link to={`/expenses/${expense.id}/forms/doan`}>도안 출장 요청서</Link>
+          </td></tr>
           <tr><th>날짜</th><td>{expense.date}</td></tr>
           <tr><th>사업명</th><td>{expense.event_name}</td></tr>
           <tr><th>지출 항목</th><td>{expense.category}</td></tr>
