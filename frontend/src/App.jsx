@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage'
 import ExpenseDetailPage from './pages/ExpenseDetailPage'
 import ExpenseListPage from './pages/ExpenseListPage'
 import ExpenseNewPage from './pages/ExpenseNewPage'
+import LandingPage from './pages/LandingPage'
 import FormPage from './pages/FormPage'
 import LoginPage from './pages/LoginPage'
 import LogsPage from './pages/LogsPage'
@@ -61,6 +62,7 @@ function Sidebar({ user, onLogout, terms, termId, setTermId }) {
 function App() {
   // undefined: 확인 중, null: 로그인 안 됨, 객체: 로그인한 사용자
   const [user, setUser] = useState(undefined)
+  const [showLogin, setShowLogin] = useState(false) // 로그인 전: 랜딩페이지 → '로그인' 누르면 로그인 화면
   const [terms, setTerms] = useState([])
   const [termId, setTermIdState] = useState(null)
 
@@ -118,7 +120,11 @@ function App() {
   }
 
   if (user === undefined) return <p style={{ padding: 16 }}>불러오는 중...</p>
-  if (user === null) return <LoginPage onLogin={setUser} />
+  if (user === null) {
+    return showLogin
+      ? <LoginPage onLogin={setUser} onBack={() => setShowLogin(false)} />
+      : <LandingPage onLogin={() => { setShowLogin(true); window.scrollTo(0, 0) }} />
+  }
   // 임시 비밀번호면 비밀번호부터 바꾸게 한다
   if (user.must_change_password) {
     return (

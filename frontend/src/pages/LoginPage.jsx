@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { api } from '../common'
 
 // 로그인 화면. 계정은 관리자가 '사용자 관리'에서 만들어 준다.
-function LoginPage({ onLogin }) {
+function LoginPage({ onLogin, onBack }) {
   const [form, setForm] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,6 +30,7 @@ function LoginPage({ onLogin }) {
       </form>
       {error && <p style={{ color: 'red' }}>{error}</p>}
       <p style={{ fontSize: 12, color: 'gray' }}>계정이 없으면 관리자에게 요청하세요.</p>
+      {onBack && <button onClick={onBack} style={{ marginTop: 8 }}>← 소개 화면으로</button>}
     </div>
   )
 }
