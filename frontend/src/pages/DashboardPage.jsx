@@ -19,12 +19,15 @@ function sumBy(expenses, key) {
     .map((g) => ({ ...g, sub: `${g.count}건` }))
 }
 
-// 지출을 월별로 합친다. 첫 지출 달부터 마지막 지출 달까지 빈 달도 0으로 채운다.
-function byMonth(expenses) {
-  if (expenses.length === 0) return []
+// 지출을 월별로 합친다. 빈 달도 0으로 채운다.
+// 임기를 골랐으면 임기의 첫 달~마지막 달, 아니면 첫 지출 달~마지막 지출 달
+function byMonth(expenses, term) {
   const totals = {}
   for (const e of expenses) totals[e.date.slice(0, 7)] = (totals[e.date.slice(0, 7)] || 0) + e.amount
   const months = Object.keys(totals).sort()
+  if (term?.start_date) months.unshift(term.start_date.slice(0, 7)), months.push(term.end_date.slice(0, 7))
+  if (months.length === 0) return []
+  months.sort()
   const rows = []
   let [y, m] = months[0].split('-').map(Number)
   const last = months[months.length - 1]
@@ -45,6 +48,7 @@ function DashboardPage() {
   const [bank, setBank] = useState(null) // 통장 현황 (불러온 거래내역 기준)
   const [budgetRows, setBudgetRows] = useState([]) // 사업별 예산 집행 (임기 전체)
   const { terms, termId } = useTerm() // 왼쪽 메뉴에서 고른 임기
+  const [groupBy, setGroupBy] = useState('category') // 지출 구성: 항목별(category) / 사업별(event_name)
   const [error, setError] = useState('')
   // 예산은 임기가 있어야 계산할 수 있다. '전체 임기'면 가장 최근 임기 예산을 쓴다.
   const budgetTerm = terms.find((t) => t.id === termId) || terms[0]
@@ -92,9 +96,12 @@ function DashboardPage() {
   const todayString = new Date().toLocaleDateString('sv') // YYYY-MM-DD
   const upcoming = schedules.filter((s) => s.date >= todayString).slice(0, 4)
   const budgetTotal = budgetRows.reduce((n, r) => n + r.budget, 0)
+  // 결정 대기: 확인·조치 필요를 먼저, 그다음 날짜 오래된 순
+  const waitingSorted = [...needCheck, ...waiting.filter((exp) => !needCheck.includes(exp))]
+  const selectedTerm = terms.find((t) => t.id === termId) // '전체 임기'면 없음
 
   return (
-    <div style={{ maxWidth: 1040 }}>
+    <div>
       {/* 1. 잔액·요약 + 달력 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(260px, 1fr)', gap: 20, marginBottom: 8 }} className="dash-top">
         <section className="card" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column' }}>
@@ -143,19 +150,19 @@ function DashboardPage() {
 
       {/* 2. 오늘 할 일 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(260px, 1fr)', gap: 20 }} className="dash-top">
-        <section>
+        <section style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="section-title">
             <h3>챙길 것 <span className="tnum" style={{ color: 'var(--bad)' }}>{todoCount || ''}</span></h3>
             <span className="muted">AI가 알려 준 할 일. 끝내면 체크하세요.</span>
           </div>
-          <div className="card" style={{ padding: '4px 20px', marginBottom: 0 }}>
+          <div className="card" style={{ padding: '4px 20px', marginBottom: 0, flex: 1 }}>
             {withTodos.length === 0 ? (
               <p className="muted" style={{ padding: '12px 0' }}>남은 할 일이 없습니다.</p>
             ) : (
               withTodos.slice(0, 5).map((exp, i) => (
                 <div key={exp.id} style={{ padding: '12px 0', borderTop: i ? '1px solid var(--line)' : 'none' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                    <Link to={`/expenses/${exp.id}`} style={{ color: 'var(--text)', fontWeight: 500 }}>
+                    <Link to={`/expenses/${exp.id}`} title={exp.description} style={{ color: 'var(--text)', fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <StatusBadge status={exp.ai_status} /> {exp.event_name} · {exp.description}
                     </Link>
                     <span className="tnum muted" style={{ whiteSpace: 'nowrap' }}>{exp.amount.toLocaleString()}원</span>
@@ -193,38 +200,61 @@ function DashboardPage() {
               ))
             )}
           </div>
+
+          <div className="section-title" style={{ marginTop: 20 }}>
+            <h3>결정 기다리는 지출 <span className="tnum muted" style={{ fontWeight: 400 }}>{waitingSorted.length || ''}</span></h3>
+            <Link to="/expenses" className="muted">지출 목록</Link>
+          </div>
+          <div className="card" style={{ padding: '4px 16px', marginBottom: 0 }}>
+            {waitingSorted.length === 0 ? (
+              <p className="muted" style={{ padding: '12px 0' }}>모두 확정했습니다.</p>
+            ) : (
+              waitingSorted.slice(0, 4).map((exp, i) => (
+                <Link key={exp.id} to={`/expenses/${exp.id}`} style={{ display: 'flex', gap: 8, padding: '10px 0', borderTop: i ? '1px solid var(--line)' : 'none', color: 'var(--text)' }}>
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                    <StatusBadge status={exp.ai_status} /> {exp.event_name} · {exp.description}
+                  </span>
+                  <span className="tnum muted" style={{ whiteSpace: 'nowrap' }}>{exp.amount.toLocaleString()}원</span>
+                </Link>
+              ))
+            )}
+          </div>
           <p className="muted" style={{ marginTop: 10 }}>
             AI 점검: 문제 없음 {countOf('적합')} · 확인 필요 {countOf('주의')} · 조치 필요 {countOf('위반')}
           </p>
         </section>
       </div>
 
-      {/* 3. 흐름: 월별 지출, 사업별 예산 집행 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-        <section>
-          <h3>월별 지출</h3>
-          <div className="card"><MonthBars rows={byMonth(expenses)} /></div>
-        </section>
-        <section>
+      {/* 3. 예산 집행과 지출 구성: 같은 높이의 두 칸 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginTop: 12 }}>
+        <section style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="section-title">
             <h3>사업별 예산 집행{budgetTerm && <span className="muted" style={{ fontWeight: 400 }}> · {budgetTerm.name}</span>}</h3>
             <Link to="/budget" className="muted">예산·결산</Link>
           </div>
-          <div className="card"><BudgetBars rows={budgetRows.slice(0, 7)} /></div>
+          <div className="card" style={{ flex: 1, marginBottom: 0 }}><BudgetBars rows={budgetRows.slice(0, 7)} /></div>
+        </section>
+        <section style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="section-title">
+            <h3>지출 구성</h3>
+            {/* 항목별 / 사업별 전환 */}
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[['category', '항목별'], ['event_name', '사업별']].map(([key, label]) => (
+                <button key={key} onClick={() => setGroupBy(key)} className={groupBy === key ? 'active' : ''} style={{ fontSize: 12, padding: '0 10px' }}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="card" style={{ flex: 1, marginBottom: 0 }}>
+            <BarList rows={sumBy(expenses, groupBy).slice(0, 7)} emptyText="지출이 없습니다." />
+          </div>
         </section>
       </div>
 
-      {/* 4. 구성: 비목별, 사업별 지출 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-        <section>
-          <h3>항목별 지출</h3>
-          <div className="card"><BarList rows={sumBy(expenses, 'category')} emptyText="지출이 없습니다." /></div>
-        </section>
-        <section>
-          <h3>사업별 지출</h3>
-          <div className="card"><BarList rows={sumBy(expenses, 'event_name').slice(0, 7)} emptyText="지출이 없습니다." /></div>
-        </section>
-      </div>
+      {/* 4. 월별 지출: 임기 전체 달을 한 줄로 */}
+      <section style={{ marginTop: 20 }}>
+        <h3>월별 지출{selectedTerm && <span className="muted" style={{ fontWeight: 400 }}> · {selectedTerm.name}</span>}</h3>
+        <div className="card"><MonthBars rows={byMonth(expenses, selectedTerm)} /></div>
+      </section>
     </div>
   )
 }
