@@ -6,10 +6,11 @@ from typing import Literal
 import uuid
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from report import build_settlement
 from bank_import import BankImportError, parse_withdrawals
 from ai_check import RECEIPT_MIME_TYPES, REGULATION_PATH, AICheckError, check_expense, read_receipt
 
@@ -456,3 +457,26 @@ def delete_budget(budget_id: int):
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="해당 예산을 찾을 수 없습니다.")
         return budget_overview(conn)
+
+
+@app.get("/reports/settlement.xlsx")
+def settlement_report(start: str = "", end: str = ""):
+    """결산보고서 엑셀을 내려준다. start/end(YYYY-MM-DD)를 주면 그 기간의 지출만 집계한다."""
+    query, params = "SELECT * FROM expenses WHERE 1=1", []
+    if start:
+        query += " AND date >= ?"
+        params.append(start)
+    if end:
+        query += " AND date <= ?"
+        params.append(end)
+    with get_conn() as conn:
+        expenses = [dict(r) for r in conn.execute(query, params)]
+        budgets = [dict(r) for r in conn.execute("SELECT event_name, category, amount FROM budgets")]
+    period = f"{start or '처음'} ~ {end or '현재'}"
+    content = build_settlement(budgets, expenses, period)
+    filename = f"settlement_{start or 'all'}_{end or 'now'}.xlsx"
+    return Response(
+        content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

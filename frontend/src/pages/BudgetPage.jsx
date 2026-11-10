@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../common'
+import { api, API_URL } from '../common'
 import NameSuggestions from '../components/NameSuggestions'
 
 const won = (n) => `${n.toLocaleString()}원`
@@ -56,6 +56,7 @@ function BudgetPage() {
   const [data, setData] = useState(null)
   const [form, setForm] = useState({ event_name: '', category: '', amount: '' })
   const [error, setError] = useState('')
+  const [period, setPeriod] = useState({ start: '', end: '' }) // 결산 기간 (비우면 전체)
 
   useEffect(() => {
     api('/budgets').then(setData).catch((e) => setError(e.message))
@@ -89,6 +90,17 @@ function BudgetPage() {
         <b style={{ color: total.amount - total.spent < 0 ? 'red' : 'inherit' }}>{won(total.amount - total.spent)}</b>
       </p>
       {error && <p style={{ color: 'red' }}>{error}</p>}
+
+      <div style={{ border: '1px dashed gray', padding: 8, marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <b>결산보고서</b>
+        <input type="date" value={period.start} onChange={(e) => setPeriod({ ...period, start: e.target.value })} />~
+        <input type="date" value={period.end} onChange={(e) => setPeriod({ ...period, end: e.target.value })} />
+        {/* 서버가 만든 엑셀 파일을 바로 내려받는 링크 */}
+        <a href={`${API_URL}/reports/settlement.xlsx?start=${period.start}&end=${period.end}`} download>
+          엑셀로 내려받기
+        </a>
+        <span style={{ fontSize: 12, color: 'gray' }}>기간을 비우면 전체. 사업별 결산, 비목별 집계, 지출 내역 시트가 들어 있습니다.</span>
+      </div>
 
       <form onSubmit={addBudget} style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 }}>
         <input list="event-names" placeholder="사업명 (예: 개강총회)" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required />
