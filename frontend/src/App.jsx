@@ -15,31 +15,46 @@ import PasswordPage from './pages/PasswordPage'
 import RegulationPage from './pages/RegulationPage'
 import UsersPage from './pages/UsersPage'
 
-// 상단 메뉴: 현재 보고 있는 페이지는 굵게 표시. 역할에 따라 보이는 메뉴가 다르다.
-function NavMenu({ user, onLogout, terms, termId, setTermId }) {
-  const style = ({ isActive }) => ({ fontWeight: isActive ? 'bold' : 'normal' })
+// 왼쪽 메뉴: 하는 일별로 묶었다. 역할에 따라 보이는 메뉴가 다르다.
+// NavLink는 지금 보고 있는 페이지에 자동으로 active 클래스를 붙인다 (index.css에서 강조).
+function Sidebar({ user, onLogout, terms, termId, setTermId }) {
   return (
-    <nav className="no-print" style={{ display: 'flex', gap: 16, borderBottom: '1px solid gray', paddingBottom: 8, flexWrap: 'wrap' }}>
+    <aside className="sidebar no-print">
+      <div className="brand">학생회 회계 동료</div>
       {/* 임기 선택: 대시보드·지출 목록·예산이 이 임기 기준으로 보인다 */}
       <select value={termId ?? 'all'} onChange={(e) => setTermId(e.target.value === 'all' ? null : Number(e.target.value))} title="임기 선택">
         {terms.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         <option value="all">전체 임기</option>
       </select>
-      <NavLink to="/" end style={style}>대시보드</NavLink>
-      {canEdit(user) && <NavLink to="/expenses/new" style={style}>지출 등록</NavLink>}
-      {canEdit(user) && <NavLink to="/expenses/import" style={style}>거래내역 불러오기</NavLink>}
-      <NavLink to="/expenses" end style={style}>지출 목록</NavLink>
-      <NavLink to="/budget" style={style}>예산</NavLink>
-      <NavLink to="/calendar" style={style}>캘린더</NavLink>
-      <NavLink to="/regulation" style={style}>규정 보기</NavLink>
-      <span style={{ flex: 1 }} />
-      {isAdmin(user) && <NavLink to="/logs" style={style}>기록</NavLink>}
-      {isAdmin(user) && <NavLink to="/users" style={style}>사용자 관리</NavLink>}
-      <span>
-        {user.display_name} ({user.role_label}) · <NavLink to="/account" style={style}>비밀번호 변경</NavLink> ·{' '}
-        <button onClick={onLogout} style={{ fontSize: 12 }}>로그아웃</button>
-      </span>
-    </nav>
+      <nav>
+        <NavLink to="/" end>대시보드</NavLink>
+
+        <div className="group">지출</div>
+        {canEdit(user) && <NavLink to="/expenses/new">지출 등록</NavLink>}
+        {canEdit(user) && <NavLink to="/expenses/import">거래내역 불러오기</NavLink>}
+        <NavLink to="/expenses" end>지출 목록</NavLink>
+
+        <div className="group">계획</div>
+        <NavLink to="/budget">예산·결산</NavLink>
+        <NavLink to="/calendar">캘린더</NavLink>
+        <NavLink to="/regulation">규정 보기</NavLink>
+
+        {isAdmin(user) && (
+          <>
+            <div className="group">관리</div>
+            <NavLink to="/logs">기록</NavLink>
+            <NavLink to="/users">사용자 관리</NavLink>
+          </>
+        )}
+      </nav>
+      <div className="me">
+        <b>{user.display_name}</b> · {user.role_label}
+        <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <NavLink to="/account" style={{ padding: 0, display: 'inline' }}>비밀번호 변경</NavLink>
+          <button onClick={onLogout} style={{ fontSize: 12, padding: '2px 8px' }}>로그아웃</button>
+        </div>
+      </div>
+    </aside>
   )
 }
 
@@ -107,7 +122,7 @@ function App() {
   // 임시 비밀번호면 비밀번호부터 바꾸게 한다
   if (user.must_change_password) {
     return (
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: 16 }}>
+      <div className="content" style={{ margin: '40px auto', maxWidth: 400 }}>
         <PasswordPage forced onChanged={loadMe} />
         <button onClick={logout}>로그아웃</button>
       </div>
@@ -119,13 +134,11 @@ function App() {
     <UserContext.Provider value={user}>
       <TermContext.Provider value={{ terms, termId, setTermId, reloadTerms }}>
       <BrowserRouter>
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: 16 }}>
-          <h1 className="no-print">학생회 회계 점검 동료</h1>
-          <NavMenu user={user} onLogout={logout} terms={terms} termId={termId} setTermId={setTermId} />
+        <div className="layout">
+          <Sidebar user={user} onLogout={logout} terms={terms} termId={termId} setTermId={setTermId} />
+          <main className="content">
           {!canEdit(user) && (
-            <p className="no-print" style={{ background: '#eef', padding: 6, fontSize: 13 }}>
-              열람 계정입니다. 보기만 할 수 있고, 등록·수정은 할 수 없습니다.
-            </p>
+            <p className="notice no-print">열람 계정입니다. 보기만 할 수 있고, 등록·수정은 할 수 없습니다.</p>
           )}
           <Routes>
             <Route path="/" element={<DashboardPage />} />
@@ -141,6 +154,7 @@ function App() {
             <Route path="/users" element={<UsersPage />} />
             <Route path="/account" element={<PasswordPage onChanged={() => {}} />} />
           </Routes>
+          </main>
         </div>
       </BrowserRouter>
       </TermContext.Provider>

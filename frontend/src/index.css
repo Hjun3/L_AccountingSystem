@@ -1,0 +1,100 @@
+/* 사이트 전체 공통 디자인. 색은 아래 변수(--이름)로 모아 두고 여기서만 바꾼다. */
+:root {
+  --bg: #f5f6f8;          /* 바탕 */
+  --surface: #ffffff;     /* 카드·표 바탕 */
+  --text: #1f2328;
+  --muted: #6b7280;       /* 보조 글자 */
+  --border: #e3e5e8;
+  --primary: #2f5bd3;     /* 버튼·링크 */
+  --primary-soft: #eaf0ff;
+  --danger: #c62828;
+  --radius: 8px;
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.5;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+h1, h2, h3 { line-height: 1.3; }
+h2 { font-size: 22px; margin: 0 0 12px; }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---------- 버튼·입력칸 ---------- */
+button {
+  font: inherit; font-size: 14px;
+  padding: 5px 12px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text);
+  cursor: pointer; white-space: nowrap;
+}
+button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+button:disabled { opacity: 0.5; cursor: default; }
+button[type='submit'] { background: var(--primary); color: white; border-color: var(--primary); }
+button[type='submit']:hover:not(:disabled) { color: white; filter: brightness(1.1); }
+input, select, textarea {
+  font: inherit; font-size: 14px;
+  padding: 5px 8px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface);
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary-soft); border-color: var(--primary); }
+input[type='checkbox'] { padding: 0; }
+label { font-size: 14px; }
+/* 세로로 쌓는 입력 폼(지출 등록, 일정 등록 등): 이름을 입력칸 위에 두어 줄을 맞춘다. 체크박스는 한 줄 그대로. */
+form[style*='grid'] label { display: flex; flex-direction: column; gap: 4px; }
+form[style*='grid'] label:has(> input[type='checkbox']) { flex-direction: row; align-items: center; gap: 6px; }
+form[style*='grid'] { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+
+/* ---------- 표 (border="1" 기본 표도 이 모양으로 바뀜) ---------- */
+table { border-collapse: collapse; background: var(--surface); border-radius: var(--radius); font-size: 14px; }
+table th, table td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; vertical-align: top; }
+table th { background: #f0f2f5; font-weight: 600; white-space: nowrap; }
+table tbody tr:hover { background: #fafbfc; }
+
+/* ---------- 화면 배치: 왼쪽 메뉴 + 오른쪽 본문 ---------- */
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 210px; flex-shrink: 0;
+  background: var(--surface); border-right: 1px solid var(--border);
+  padding: 16px 12px;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.sidebar .brand { font-weight: 700; font-size: 16px; margin: 0 4px 12px; }
+.sidebar select { width: 100%; margin-bottom: 12px; }
+.sidebar .group { font-size: 12px; color: var(--muted); margin: 14px 8px 4px; }
+.sidebar a { display: block; padding: 6px 10px; border-radius: 6px; color: var(--text); font-size: 14px; }
+.sidebar a:hover { background: var(--bg); text-decoration: none; }
+.sidebar a.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.sidebar .me { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 12px; font-size: 13px; color: var(--muted); }
+.sidebar .me b { color: var(--text); }
+.content { flex: 1; min-width: 0; padding: 24px 28px; max-width: 1200px; }
+
+/* 좁은 화면(휴대폰): 메뉴를 위로 올린다 */
+@media (max-width: 760px) {
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); }
+  .sidebar nav { display: flex; flex-wrap: wrap; gap: 2px; }
+  .sidebar .group { display: none; }
+  .content { padding: 16px; }
+  table { display: block; overflow-x: auto; }
+}
+
+/* ---------- 자주 쓰는 모양 ---------- */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+.notice { background: var(--primary-soft); border-radius: 6px; padding: 8px 12px; font-size: 13px; }
+.muted { color: var(--muted); font-size: 13px; }
+/* 탭·필터 버튼: 고른 것(active)을 색으로 강조 */
+button.active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); font-weight: 600; }
+
+/* AI 점검 결과 표시 (문제 없음 / 확인 필요 / 조치 필요) */
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+@media print {
+  .no-print { display: none !important; }
+  body, :root { background: white; }
+  .content { padding: 0; }
+}

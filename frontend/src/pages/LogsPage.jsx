@@ -27,7 +27,7 @@ function LogsPage() {
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
         {ACTIONS.map((a) => (
-          <button key={a} onClick={() => setFilter(a)} style={{ fontWeight: a === filter ? 'bold' : 'normal' }}>
+          <button key={a} onClick={() => setFilter(a)} className={a === filter ? 'active' : ''}>
             {a} ({logs.filter((l) => a === '전체' || l.action === a).length})
           </button>
         ))}

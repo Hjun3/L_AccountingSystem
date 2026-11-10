@@ -21,6 +21,8 @@ export const termQuery = (termId) => (termId ? `?term_id=${termId}` : '')
 
 // AI 점검 결과를 화면에 보여줄 이름. 저장값(적합/주의/위반)은 그대로 두고 표시만 동료 말투로 바꾼다.
 export const STATUS_LABELS = { 적합: '문제 없음', 주의: '확인 필요', 위반: '조치 필요' }
+// 배지(동그란 표시) 바탕색
+export const STATUS_BG = { 적합: '#e6f4ea', 주의: '#fff3e0', 위반: '#fdecea' }
 
 // 비목 목록 (감사자료에서 확인한 학생회 비목). 입력칸 자동완성에 쓴다.
 export const CATEGORIES = ['수용비', '급량비', '상품비', '대여비', '환급비', '보조비', '활동비', '교통비']

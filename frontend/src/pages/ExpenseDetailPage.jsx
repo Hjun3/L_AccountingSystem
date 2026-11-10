@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, STATUS_COLORS, STATUS_LABELS } from '../common'
+import { api, canEdit, useUser } from '../common'
 import DecisionCell from '../components/DecisionCell'
 import MemoAndFiles from '../components/MemoAndFiles'
 import NameSuggestions from '../components/NameSuggestions'
+import StatusBadge from '../components/StatusBadge'
 import TodoList from '../components/TodoList'
 
 // 지출 정보 수정 폼. 저장하면 바뀐 칸이 '기록' 화면에 남는다. (AI 점검은 다시 하지 않음)
@@ -55,6 +56,7 @@ function ExpenseDetailPage() {
   const [editing, setEditing] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+  const user = useUser()
 
   async function loadExpense() {
     try {
@@ -97,7 +99,9 @@ function ExpenseDetailPage() {
         </p>
       )}
 
-      <h3>지출 정보</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 16, alignItems: 'start' }}>
+      <div className="card">
+      <h3 style={{ marginTop: 0 }}>지출 정보</h3>
       {editing ? (
         <ExpenseEditForm
           expense={expense}
@@ -109,7 +113,7 @@ function ExpenseDetailPage() {
         />
       ) : (
         <>
-          <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%' }}>
             <tbody>
               <tr><th>날짜</th><td>{expense.date}</td></tr>
               <tr><th>사업명</th><td>{expense.event_name}</td></tr>
@@ -125,19 +129,22 @@ function ExpenseDetailPage() {
               </td></tr>
             </tbody>
           </table>
-          {!deleted && (
-            <p>
+          {!deleted && canEdit(user) && (
+            <p style={{ marginBottom: 0 }}>
               <button onClick={() => setEditing(true)}>수정</button> <button onClick={remove}>삭제</button>
             </p>
           )}
         </>
       )}
+      </div>
 
-      <h3>AI 점검 (참고용)</h3>
+      <div>
+      <div className="card">
+      <h3 style={{ marginTop: 0 }}>AI 점검 (참고용)</h3>
       {expense.updated_at && (
         <p style={{ fontSize: 12, color: 'darkorange' }}>※ 등록 후 지출 정보가 수정되었습니다. 아래 점검 결과는 수정 전 내용 기준입니다.</p>
       )}
-      <p style={{ fontSize: 20, fontWeight: 'bold', color: STATUS_COLORS[expense.ai_status] }}>{STATUS_LABELS[expense.ai_status]}</p>
+      <p style={{ fontSize: 18 }}><StatusBadge status={expense.ai_status} /></p>
       <p>
         <b>근거 조항:</b> {expense.ai_clause} (<Link to="/regulation">규정 보기</Link>)
       </p>
@@ -150,17 +157,22 @@ function ExpenseDetailPage() {
           <TodoList expense={expense} onChanged={loadExpense} />
         </>
       )}
+      </div>
 
       {!deleted && (
-        <>
-          <h3>총무 결정</h3>
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>총무 결정</h3>
           {/* key를 주어 다른 지출로 이동하면 결정 칸의 입력 상태를 새로 시작한다 */}
-          <div style={{ maxWidth: 400 }}>
-            <DecisionCell key={expense.id} expense={expense} onSaved={loadExpense} />
-          </div>
+          <DecisionCell key={expense.id} expense={expense} onSaved={loadExpense} />
+        </div>
+      )}
+      </div>
+      </div>
 
+      {!deleted && (
+        <div className="card">
           <MemoAndFiles key={'m' + expense.id} expense={expense} onChanged={loadExpense} />
-        </>
+        </div>
       )}
     </div>
   )

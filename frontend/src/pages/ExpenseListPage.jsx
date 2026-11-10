@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, STATUS_COLORS, STATUS_LABELS, termQuery, useTerm } from '../common'
+import { api, STATUS_LABELS, termQuery, useTerm } from '../common'
 import DecisionCell from '../components/DecisionCell'
+import StatusBadge from '../components/StatusBadge'
 
 // 필터 버튼 목록: AI 점검 결과와 총무 결정 상태로 걸러 본다
 const FILTERS = ['전체', '적합', '주의', '위반', '결정 대기']
@@ -37,7 +38,7 @@ function ExpenseListPage() {
   return (
     <div>
       <h2>지출 목록</h2>
-      <p style={{ color: 'gray' }}>
+      <p className="muted">
         ※ AI 점검은 참고용이며, 최종 판단은 총무가 합니다. 현재 점검 기준은 시연용 임시 규정입니다.
         <br />※ '챙길 것'은 AI가 알려 준 할 일 중 아직 체크하지 않은 개수입니다. 상세 화면에서 체크할 수 있습니다.
       </p>
@@ -45,7 +46,7 @@ function ExpenseListPage() {
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
         {FILTERS.map((f) => (
-          <button key={f} onClick={() => setFilter(f)} style={{ fontWeight: f === filter ? 'bold' : 'normal' }}>
+          <button key={f} onClick={() => setFilter(f)} className={f === filter ? 'active' : ''}>
             {STATUS_LABELS[f] || f} ({expenses.filter((exp) => matchesFilter(exp, f)).length})
           </button>
         ))}
@@ -70,22 +71,22 @@ function ExpenseListPage() {
         <tbody>
           {shown.map((exp) => (
             <tr key={exp.id}>
-              <td>{exp.date}</td>
-              <td>{exp.event_name}</td>
-              <td>{exp.category}</td>
-              <td>
+              <td style={{ whiteSpace: 'nowrap' }}>{exp.date}</td>
+              <td style={{ minWidth: 90 }}>{exp.event_name}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{exp.category}</td>
+              <td style={{ minWidth: 220 }}>
                 <Link to={`/expenses/${exp.id}`}>{exp.description}</Link>
               </td>
-              <td>{exp.amount.toLocaleString()}원</td>
-              <td>{exp.has_receipt ? '있음' : '없음'}</td>
-              <td style={{ color: STATUS_COLORS[exp.ai_status], fontWeight: 'bold' }}>{STATUS_LABELS[exp.ai_status]}</td>
-              <td>{exp.ai_clause}</td>
-              <td>{exp.ai_reason}</td>
+              <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>{exp.amount.toLocaleString()}원</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{exp.has_receipt ? '있음' : '없음'}</td>
+              <td><StatusBadge status={exp.ai_status} /></td>
+              <td style={{ fontSize: 13 }}>{exp.ai_clause}</td>
+              <td style={{ fontSize: 13 }}>{exp.ai_reason}</td>
               <td style={{ textAlign: 'center' }}>
                 {exp.ai_todos.filter((t) => !t.done).length || '-'}
               </td>
               <td>
-                <DecisionCell expense={exp} onSaved={loadExpenses} />
+                <DecisionCell key={exp.id + exp.final_status} expense={exp} onSaved={loadExpenses} compact />
               </td>
             </tr>
           ))}

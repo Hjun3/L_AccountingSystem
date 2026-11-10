@@ -53,7 +53,7 @@ function MemoAndFiles({ expense, onChanged }) {
 
   return (
     <div>
-      <h3>메모</h3>
+      <h3 style={{ marginTop: 0 }}>메모</h3>
       <p style={{ fontSize: 12, color: 'gray', margin: 0 }}>총무 참고용 메모입니다. AI 점검에는 쓰이지 않습니다.</p>
       <div style={{ display: 'flex', gap: 4, maxWidth: 600 }}>
         <input

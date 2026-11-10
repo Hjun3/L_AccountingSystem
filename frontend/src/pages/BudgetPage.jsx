@@ -222,12 +222,11 @@ function BudgetPage() {
       <h2>예산 ({term.name})</h2>
       {termId === null && <p style={{ fontSize: 12, color: 'gray' }}>'전체 임기'를 고른 상태라 가장 최근 임기({term.name}) 예산을 보여줍니다.</p>}
       <NameSuggestions />
-      {isAdmin(user) && <NewTermForm terms={terms} currentTerm={term} onCreated={(id) => reloadTerms(id)} />}
 
       {/* 기간 탭 */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
         {periods.map((p) => (
-          <button key={p.id} onClick={() => setPeriodId(p.id)} style={{ fontWeight: p.id === periodId ? 'bold' : 'normal', padding: '4px 12px' }}>
+          <button key={p.id} onClick={() => setPeriodId(p.id)} className={p.id === periodId ? 'active' : ''}>
             {p.name}
           </button>
         ))}
@@ -300,6 +299,12 @@ function BudgetPage() {
 
       <h3>월별 지출</h3>
       <MonthlyTable monthly={data.monthly} />
+
+      {isAdmin(user) && (
+        <div style={{ marginTop: 32 }}>
+          <NewTermForm terms={terms} currentTerm={term} onCreated={(id) => reloadTerms(id)} />
+        </div>
+      )}
     </div>
   )
 }

@@ -103,7 +103,7 @@ function ExpenseNewPage() {
     <div>
       <h2>지출 등록</h2>
       <NameSuggestions />
-      <div style={{ border: '1px dashed gray', padding: 8, marginBottom: 12, maxWidth: 384 }}>
+      <div className="card" style={{ maxWidth: 400, marginBottom: 12 }}>
         <b>영수증 사진으로 채우기</b>{' '}
         <input type="file" accept="image/jpeg,image/png,image/webp" onChange={readReceipt} disabled={reading || saving} />
         {reading && <div>AI가 영수증을 읽는 중...</div>}
