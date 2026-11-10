@@ -125,10 +125,12 @@ function DashboardPage() {
               </div>
             )}
           </div>
-          {/* 최근 3개월 입출금 (통장 기준). 오래된 달부터 */}
-          {bank.months.length > 0 && (
-            <div className="tnum" style={{ display: 'grid', gridTemplateColumns: `auto repeat(${bank.months.length}, auto)`, justifyContent: 'start', columnGap: 28, rowGap: 4, marginTop: 14, fontSize: 13 }}>
-              <span className="muted">최근 입출금</span>
+          {/* 가운데: 왼쪽 최근 입출금, 오른쪽 예산 사용 */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px 40px', marginTop: 16 }}>
+            {/* 최근 3개월 입출금 (통장 기준). 오래된 달부터 */}
+            {bank.months.length > 0 && (
+            <div className="tnum" style={{ display: 'grid', gridTemplateColumns: `auto repeat(${bank.months.length}, auto)`, justifyContent: 'start', columnGap: 28, rowGap: 4, fontSize: 13 }}>
+              <span className="muted" style={{ whiteSpace: 'nowrap' }}>최근 입출금</span>
               {[...bank.months].reverse().map((m) => <span key={m.month} className="muted" style={{ textAlign: 'right' }}>{Number(m.month.slice(5))}월</span>)}
               {[['입금', 'deposit', '+'], ['출금', 'withdraw', '−']].map(([label, key, sign]) => [
                 <span key={key} className="muted">{label}</span>,
@@ -137,11 +139,35 @@ function DashboardPage() {
                 )),
               ])}
             </div>
-          )}
+            )}
+            {/* 예산 사용: 임기 예산 대비 지출 */}
+            <div style={{ flex: 1, minWidth: 220, fontSize: 13 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span className="muted">{budgetTerm ? `${budgetTerm.name} 예산 사용` : '예산 사용'}</span>
+                <Link to="/budget" className="muted">예산·결산</Link>
+              </div>
+              {budgetTotal ? (
+                <>
+                  <div className="tnum" style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
+                    <b style={{ fontSize: 22, color: total > budgetTotal ? 'var(--bad)' : 'var(--text)' }}>{Math.round((total / budgetTotal) * 100)}%</b>
+                    <span className="muted">{total.toLocaleString()} / {budgetTotal.toLocaleString()}원</span>
+                  </div>
+                  <div style={{ height: 8, background: 'var(--line)', borderRadius: 4, marginTop: 6 }}>
+                    <div style={{ width: `${Math.min((total / budgetTotal) * 100, 100)}%`, height: '100%', borderRadius: 4, background: total > budgetTotal ? 'var(--bad)' : 'var(--primary)' }} />
+                  </div>
+                  <div className="muted tnum" style={{ marginTop: 6 }}>
+                    {total > budgetTotal ? `${(total - budgetTotal).toLocaleString()}원 초과` : `남은 예산 ${(budgetTotal - total).toLocaleString()}원`}
+                  </div>
+                </>
+              ) : (
+                <p className="muted" style={{ marginTop: 4 }}>예산을 등록하면 사용률이 보입니다.</p>
+              )}
+            </div>
+          </div>
           {/* 요약 3개: 같은 모양 카드 대신 한 줄에 구분선으로 */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 'auto', paddingTop: 18, borderTop: '1px solid var(--line)' }}>
             {[
-              { label: budgetTerm ? `${budgetTerm.name} 지출` : '지출', value: `${total.toLocaleString()}원`, sub: budgetTotal ? `예산 ${Math.round((total / budgetTotal) * 100)}% 사용` : `${expenses.length}건` },
+              { label: budgetTerm ? `${budgetTerm.name} 지출` : '지출', value: `${total.toLocaleString()}원`, sub: `${expenses.length}건` },
               { label: '챙길 것', value: `${todoCount}개`, sub: `${withTodos.length}건의 지출`, alert: todoCount > 0 },
               { label: '결정 대기', value: `${waiting.length}건`, sub: `확인·조치 필요 ${needCheck.length}건`, alert: needCheck.length > 0, to: '/expenses' },
             ].map((it, i) => (
