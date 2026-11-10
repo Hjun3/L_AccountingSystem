@@ -1,4 +1,3 @@
-import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -11,35 +10,40 @@ from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import auth
+from auth import current_user, init_auth_tables
+from db import get_conn, now_text
 from report import build_settlement
 from bank_import import BankImportError, parse_transactions
 from ai_check import RECEIPT_MIME_TYPES, REGULATION_PATH, AICheckError, check_expense, read_receipt
 
-DB_PATH = Path(__file__).parent / "expenses.db"
 UPLOAD_DIR = Path(__file__).parent / "uploads"  # 첨부파일 저장 폴더 (GitHub에 올리지 않음)
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".webp", ".pdf"}
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
 DEFAULT_ORG_ID = "default"  # 지금은 조직이 하나뿐이라 기본값 사용
 
-app = FastAPI()
+# API 설명 페이지(/docs)는 끈다. 켜 두면 외부에서 API 목록을 그대로 볼 수 있다.
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
-# React 개발 서버(5173 포트)에서 이 API를 호출할 수 있도록 허용
+# 요청마다 로그인·권한을 확인한다 (auth.py)
+app.middleware("http")(auth.auth_middleware)
+
+# React 개발 서버(5173 포트)에서 이 API를 호출할 수 있도록 허용.
+# 로그인 쿠키를 주고받도록 allow_credentials를 켠다.
+# 이 설정을 로그인 확인보다 나중에 추가해야 바깥쪽에서 동작해서, '로그인 필요' 응답에도 허용 정보가 붙는다.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-def get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # 결과를 딕셔너리처럼 꺼낼 수 있게 함
-    return conn
+app.include_router(auth.router)
 
 
 def init_db():
     with get_conn() as conn:
+        init_auth_tables(conn)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS expenses (
@@ -72,6 +76,7 @@ def init_db():
             conn.execute("ALTER TABLE expenses ADD COLUMN updated_at TEXT")
         if "deleted_at" not in columns:
             conn.execute("ALTER TABLE expenses ADD COLUMN deleted_at TEXT")
+
         # 변경 기록: 지출 수정·삭제, 증빙 첨부·삭제를 한 줄씩 남긴다 (지우거나 고치지 않음)
         conn.execute(
             """
@@ -182,6 +187,11 @@ def init_db():
             """
         )
 
+        # 기록에 '누가 했는지'(사용자 이름) 칸을 추가한다
+        for table in ("change_logs", "decision_logs"):
+            if "actor" not in [c["name"] for c in conn.execute(f"PRAGMA table_info({table})")]:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN actor TEXT")
+
 
 init_db()
 
@@ -196,14 +206,16 @@ class ExpenseIn(BaseModel):
     has_receipt: bool
 
 
-def now_text():
-    return datetime.now().isoformat(timespec="seconds")
+def actor_name():
+    """지금 요청한 사용자 이름 (기록용). 스크립트에서 실행하면 '시스템'."""
+    user = current_user.get()
+    return f"{user['display_name']}({user['username']})" if user else "시스템"
 
 
 def add_change_log(conn, expense_id, action, detail=""):
     conn.execute(
-        "INSERT INTO change_logs (expense_id, action, detail, created_at) VALUES (?, ?, ?, ?)",
-        (expense_id, action, detail, now_text()),
+        "INSERT INTO change_logs (expense_id, action, detail, created_at, actor) VALUES (?, ?, ?, ?, ?)",
+        (expense_id, action, detail, now_text(), actor_name()),
     )
 
 
@@ -274,11 +286,11 @@ def decide_expense(expense_id: int, decision: DecisionIn):
         )
         conn.execute(
             """
-            INSERT INTO decision_logs (expense_id, from_status, to_status, explanation, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO decision_logs (expense_id, from_status, to_status, explanation, created_at, actor)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (expense_id, old["final_status"], decision.final_status, new_explanation,
-             datetime.now().isoformat(timespec="seconds")),
+             datetime.now().isoformat(timespec="seconds"), actor_name()),
         )
         row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
         return to_dict(row, conn)
@@ -346,10 +358,10 @@ def list_logs():
     """기록 화면용: 지출 수정·삭제, 증빙 첨부·삭제, 총무 결정 기록을 최신순으로 합쳐서 돌려준다."""
     with get_conn() as conn:
         changes = conn.execute(
-            "SELECT id, expense_id, action, detail, created_at FROM change_logs"
+            "SELECT id, expense_id, action, detail, created_at, actor FROM change_logs"
         ).fetchall()
         decisions = conn.execute(
-            "SELECT id, expense_id, from_status, to_status, explanation, created_at FROM decision_logs"
+            "SELECT id, expense_id, from_status, to_status, explanation, created_at, actor FROM decision_logs"
         ).fetchall()
         expenses = {
             r["id"]: dict(r) for r in conn.execute("SELECT id, date, event_name, amount, description, deleted_at FROM expenses")
@@ -358,7 +370,8 @@ def list_logs():
     for d in decisions:
         to = "취소" if d["to_status"] == "대기" else d["to_status"]
         detail = f"{d['from_status']} → {to}" + (f" ({d['explanation']})" if d["explanation"] else "")
-        logs.append({"id": d["id"], "expense_id": d["expense_id"], "action": "총무 결정", "detail": detail, "created_at": d["created_at"]})
+        logs.append({"id": d["id"], "expense_id": d["expense_id"], "action": "총무 결정", "detail": detail,
+                     "created_at": d["created_at"], "actor": d["actor"]})
     for log in logs:
         log["expense"] = expenses.get(log["expense_id"])
     # 같은 초에 생긴 기록은 저장된 순서(id)로 정렬한다
@@ -372,7 +385,7 @@ def to_dict(row, conn):
     d["ai_todos"] = json.loads(d["ai_todos"]) if d.get("ai_todos") else []
     # 이 지출의 결정 이력을 오래된 순서로 붙여서 보낸다
     logs = conn.execute(
-        "SELECT from_status, to_status, explanation, created_at FROM decision_logs "
+        "SELECT from_status, to_status, explanation, created_at, actor FROM decision_logs "
         "WHERE expense_id = ? ORDER BY id",
         (d["id"],),
     ).fetchall()

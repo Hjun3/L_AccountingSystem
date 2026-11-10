@@ -5,7 +5,7 @@ import { api } from '../common'
 const ACTIONS = ['전체', '지출 수정', '지출 삭제', '증빙 첨부', '증빙 삭제', '총무 결정']
 
 // 기록 화면: 지출 수정·삭제, 증빙 첨부·삭제, 총무 결정을 최신순으로 모아 본다.
-// 관리자(감사·인수인계 담당)가 확인하는 용도. 지금은 로그인이 없어서 누구나 볼 수 있다.
+// 관리자만 볼 수 있다. (서버에서도 /logs는 관리자만 허용)
 function LogsPage() {
   const [logs, setLogs] = useState([])
   const [filter, setFilter] = useState('전체')
@@ -35,12 +35,13 @@ function LogsPage() {
 
       <table border="1" cellPadding="4" style={{ borderCollapse: 'collapse', fontSize: 13, width: '100%' }}>
         <thead>
-          <tr><th>시각</th><th>종류</th><th>대상 지출</th><th>내용</th></tr>
+          <tr><th>시각</th><th>한 사람</th><th>종류</th><th>대상 지출</th><th>내용</th></tr>
         </thead>
         <tbody>
           {shown.map((l, i) => (
             <tr key={i}>
               <td style={{ whiteSpace: 'nowrap' }}>{l.created_at.replace('T', ' ')}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{l.actor || '-'}</td>
               <td style={{ whiteSpace: 'nowrap', color: l.action === '지출 삭제' ? 'red' : 'inherit' }}>{l.action}</td>
               <td>
                 {l.expense ? (

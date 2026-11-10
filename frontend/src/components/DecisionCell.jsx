@@ -60,6 +60,7 @@ function DecisionLogs({ logs }) {
           {log.created_at.replace('T', ' ').slice(0, 16)} {log.from_status} →{' '}
           {log.to_status === '대기' ? '취소' : log.to_status}
           {log.explanation && ` (${log.explanation})`}
+          {log.actor && ` - ${log.actor}`}
         </li>
       ))}
     </ul>
