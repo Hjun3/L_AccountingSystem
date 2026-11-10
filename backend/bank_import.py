@@ -86,7 +86,12 @@ def _decrypt_if_needed(file_bytes: bytes, password: str) -> bytes:
 
 
 def parse_withdrawals(file_bytes: bytes, password: str = "") -> list[dict]:
-    """엑셀 파일에서 출금 거래만 골라 [{datetime, date, amount, content, balance}, ...]로 돌려준다."""
+    """엑셀 파일에서 출금 거래만 골라 돌려준다. (지출과 맞춰 보는 데 사용)"""
+    return [t for t in parse_transactions(file_bytes, password) if t["direction"] == "출금"]
+
+
+def parse_transactions(file_bytes: bytes, password: str = "") -> list[dict]:
+    """엑셀 파일의 모든 거래를 [{datetime, date, direction(입금/출금), amount, content, balance}, ...]로 돌려준다."""
     file_bytes = _decrypt_if_needed(file_bytes, password)
     try:
         workbook = load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
@@ -99,7 +104,7 @@ def parse_withdrawals(file_bytes: bytes, password: str = "") -> list[dict]:
     def cell(row, key):
         return row[col[key]] if key in col and col[key] < len(row) else None
 
-    withdrawals = []
+    transactions = []
     for row in rows[header_index + 1:]:
         when = _to_datetime(cell(row, "datetime"))
         if when is None:
@@ -108,20 +113,24 @@ def parse_withdrawals(file_bytes: bytes, password: str = "") -> list[dict]:
         kind = _clean(cell(row, "kind"))
         if "withdraw" in col:
             # 출금액/입금액 열이 따로 있는 은행
-            amount = _to_int(cell(row, "withdraw"))
+            out_amount = _to_int(cell(row, "withdraw"))
+            direction = "출금" if out_amount > 0 else "입금"
+            amount = out_amount if out_amount > 0 else _to_int(cell(row, "deposit"))
         else:
             # 거래금액 하나에 입금은 +, 출금은 - 로 적는 은행
             signed = _to_int(cell(row, "amount"))
-            is_withdraw = signed < 0 or "출금" in kind or "결제" in kind
-            amount = abs(signed) if is_withdraw and "입금" not in kind else 0
+            is_withdraw = (signed < 0 or "출금" in kind or "결제" in kind) and "입금" not in kind
+            direction = "출금" if is_withdraw else "입금"
+            amount = abs(signed)
         if amount <= 0:
-            continue  # 입금은 지출이 아니므로 제외
+            continue  # 금액이 없는 줄은 건너뜀
 
-        withdrawals.append({
-            "datetime": when.isoformat(timespec="minutes"),
+        transactions.append({
+            "datetime": when.isoformat(timespec="seconds"),
             "date": when.date().isoformat(),
+            "direction": direction,
             "amount": amount,
             "content": str(cell(row, "content") or "").strip(),
             "balance": _to_int(cell(row, "balance")) if "balance" in col else None,
         })
-    return withdrawals
+    return transactions

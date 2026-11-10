@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from report import build_settlement
-from bank_import import BankImportError, parse_withdrawals
+from bank_import import BankImportError, parse_transactions
 from ai_check import RECEIPT_MIME_TYPES, REGULATION_PATH, AICheckError, check_expense, read_receipt
 
 DB_PATH = Path(__file__).parent / "expenses.db"
@@ -90,6 +90,22 @@ def init_db():
                 amount INTEGER NOT NULL,
                 memo TEXT,
                 created_at TEXT NOT NULL
+            )
+            """
+        )
+        # 통장 거래내역: 불러온 엑셀의 거래를 저장해 잔액·입출금 현황에 쓴다. 같은 거래는 한 번만 저장한다.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bank_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id TEXT NOT NULL,
+                datetime TEXT NOT NULL,
+                direction TEXT NOT NULL,
+                amount INTEGER NOT NULL,
+                balance INTEGER,
+                content TEXT,
+                imported_at TEXT NOT NULL,
+                UNIQUE (org_id, datetime, direction, amount, balance)
             )
             """
         )
@@ -361,15 +377,29 @@ async def read_receipt_photo(file: UploadFile = File(...)):
 
 @app.post("/bank/import")
 async def import_bank_excel(file: UploadFile = File(...), password: str = Form("")):
-    """거래내역 엑셀의 출금 내역을 읽고, 이미 등록된 지출과 날짜·금액으로 맞춰 본다. (DB에는 저장하지 않음)"""
+    """거래내역 엑셀을 읽어 거래를 저장하고(잔액 현황용), 출금을 등록된 지출과 날짜·금액으로 맞춰 본다.
+    엑셀 파일 자체는 저장하지 않는다."""
     if Path(file.filename or "").suffix.lower() != ".xlsx":
         raise HTTPException(status_code=400, detail="xlsx 엑셀 파일만 올릴 수 있습니다.")
     try:
-        withdrawals = parse_withdrawals(await file.read(), password)
+        transactions = parse_transactions(await file.read(), password)
     except BankImportError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # 거래를 저장한다. 이미 저장된 거래(같은 일시·방향·금액·잔액)는 건너뛴다.
+    now = datetime.now().isoformat(timespec="seconds")
+    with get_conn() as conn:
+        before = conn.execute("SELECT COUNT(*) FROM bank_transactions").fetchone()[0]
+        conn.executemany(
+            "INSERT OR IGNORE INTO bank_transactions (org_id, datetime, direction, amount, balance, content, imported_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [(DEFAULT_ORG_ID, t["datetime"], t["direction"], t["amount"], t["balance"], t["content"], now) for t in transactions],
+        )
+        saved = conn.execute("SELECT COUNT(*) FROM bank_transactions").fetchone()[0] - before
+
+    withdrawals = [t for t in transactions if t["direction"] == "출금"]
     if not withdrawals:
-        return {"transactions": [], "unmatched_expenses": []}
+        return {"transactions": [], "unmatched_expenses": [], "saved_count": saved}
 
     first_date = min(w["date"] for w in withdrawals)
     last_date = max(w["date"] for w in withdrawals)
@@ -392,7 +422,7 @@ async def import_bank_excel(file: UploadFile = File(...), password: str = Form("
 
     # 지출로는 등록됐는데 같은 기간 통장에 출금이 없는 건 (금액·날짜를 잘못 입력했을 수 있음)
     unmatched_expenses = [exp for exp in expenses if exp["id"] not in used]
-    return {"transactions": withdrawals, "unmatched_expenses": unmatched_expenses}
+    return {"transactions": withdrawals, "unmatched_expenses": unmatched_expenses, "saved_count": saved}
 
 
 class BudgetIn(BaseModel):
@@ -506,3 +536,25 @@ def toggle_todo(expense_id: int, index: int, body: TodoDoneIn):
         conn.execute("UPDATE expenses SET ai_todos = ? WHERE id = ?", (json.dumps(todos, ensure_ascii=False), expense_id))
         row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
         return to_dict(row, conn)
+
+
+@app.get("/bank/summary")
+def bank_summary():
+    """저장된 거래로 최근 잔액과 월별 입출금 합계를 돌려준다. (대시보드용)"""
+    with get_conn() as conn:
+        latest = conn.execute(
+            "SELECT datetime, balance FROM bank_transactions WHERE balance IS NOT NULL ORDER BY datetime DESC, id DESC LIMIT 1"
+        ).fetchone()
+        months = conn.execute(
+            """
+            SELECT substr(datetime, 1, 7) AS month,
+                   SUM(CASE WHEN direction = '입금' THEN amount ELSE 0 END) AS deposit,
+                   SUM(CASE WHEN direction = '출금' THEN amount ELSE 0 END) AS withdraw
+            FROM bank_transactions GROUP BY month ORDER BY month DESC LIMIT 3
+            """
+        ).fetchall()
+    return {
+        "balance": latest["balance"] if latest else None,
+        "as_of": latest["datetime"] if latest else None,
+        "months": [dict(m) for m in months],
+    }

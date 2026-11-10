@@ -42,13 +42,15 @@ function SummaryTable({ title, rows }) {
 function DashboardPage() {
   const [expenses, setExpenses] = useState(null)
   const [schedules, setSchedules] = useState([])
+  const [bank, setBank] = useState(null) // 통장 현황 (불러온 거래내역 기준)
   const [error, setError] = useState('')
 
   function load() {
-    Promise.all([api('/expenses'), api('/schedules')])
-      .then(([exps, schs]) => {
+    Promise.all([api('/expenses'), api('/schedules'), api('/bank/summary')])
+      .then(([exps, schs, bankSummary]) => {
         setExpenses(exps)
         setSchedules(schs)
+        setBank(bankSummary)
       })
       .catch((e) => setError(e.message))
   }
@@ -77,6 +79,34 @@ function DashboardPage() {
       <p>
         총 지출 <b>{expenses.length}건</b>, <b>{total.toLocaleString()}원</b>
       </p>
+
+      <h3>통장 현황</h3>
+      {bank.balance === null ? (
+        <p>
+          거래내역을 불러오면 잔액이 보입니다. <Link to="/expenses/import">거래내역 불러오기</Link>
+        </p>
+      ) : (
+        <>
+          <p>
+            잔액 <b style={{ fontSize: 18 }}>{bank.balance.toLocaleString()}원</b>{' '}
+            <span style={{ fontSize: 12, color: 'gray' }}>({bank.as_of.replace('T', ' ').slice(0, 16)} 거래 기준)</span>
+          </p>
+          <table border="1" cellPadding="4" style={{ borderCollapse: 'collapse' }}>
+            <thead>
+              <tr><th>월</th><th>입금</th><th>출금</th></tr>
+            </thead>
+            <tbody>
+              {bank.months.map((m) => (
+                <tr key={m.month}>
+                  <td>{m.month}</td>
+                  <td style={{ textAlign: 'right', color: 'steelblue' }}>{m.deposit.toLocaleString()}원</td>
+                  <td style={{ textAlign: 'right', color: 'crimson' }}>{m.withdraw.toLocaleString()}원</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
 
       <h3>다가오는 일정</h3>
       {upcoming.length === 0 ? (

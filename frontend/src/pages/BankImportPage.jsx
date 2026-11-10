@@ -89,7 +89,7 @@ function BankImportPage() {
       <p style={{ fontSize: 13 }}>
         카카오뱅크·토스뱅크 앱에서 받은 거래내역 엑셀(xlsx)을 올리면, 출금 내역을 등록된 지출과 날짜·금액으로 맞춰 봅니다.
         <br />
-        AI는 'AI 점검 후 등록'을 누른 줄만 호출합니다. 파일은 서버에 저장하지 않습니다.
+        AI는 'AI 점검 후 등록'을 누른 줄만 호출합니다. 엑셀 파일은 저장하지 않고, 거래 내역만 대시보드 잔액 현황용으로 저장합니다(같은 거래는 한 번만).
       </p>
       <p style={{ fontSize: 12, color: 'gray' }}>
         시연용 가상 파일: backend/sample_data/kakaobank_sample.xlsx, tossbank_sample.xlsx
@@ -117,6 +117,7 @@ function BankImportPage() {
 
       {result && (
         <>
+          <p style={{ fontSize: 13 }}>새로 저장된 거래 {result.saved_count}건 (이미 저장된 거래는 건너뜀)</p>
           <h3>
             출금 {result.transactions.length}건 (미등록 <span style={{ color: 'red' }}>{unregisteredCount}건</span>)
           </h3>
