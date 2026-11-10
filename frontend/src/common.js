@@ -5,6 +5,9 @@ export const API_URL = 'http://localhost:8000'
 // AI 점검 결과별 글자색 (한눈에 구분되도록)
 export const STATUS_COLORS = { 적합: 'green', 주의: 'darkorange', 위반: 'red' }
 
+// 비목 목록 (감사자료에서 확인한 학생회 비목). 입력칸 자동완성에 쓴다.
+export const CATEGORIES = ['수용비', '급량비', '상품비', '대여비', '환급비', '보조비', '활동비', '교통비']
+
 // 캘린더 일정 종류별 글자색
 export const KIND_COLORS = { 사업: 'steelblue', 감사: 'purple', 기타: 'gray' }
 

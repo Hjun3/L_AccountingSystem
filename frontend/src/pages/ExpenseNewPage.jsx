@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../common'
+import NameSuggestions from '../components/NameSuggestions'
 
 // 폼의 처음 상태
 const EMPTY_FORM = {
@@ -101,6 +102,7 @@ function ExpenseNewPage() {
   return (
     <div>
       <h2>지출 등록</h2>
+      <NameSuggestions />
       <div style={{ border: '1px dashed gray', padding: 8, marginBottom: 12, maxWidth: 384 }}>
         <b>영수증 사진으로 채우기</b>{' '}
         <input type="file" accept="image/jpeg,image/png,image/webp" onChange={readReceipt} disabled={reading || saving} />
@@ -116,10 +118,10 @@ function ExpenseNewPage() {
           금액(원) <input type="number" name="amount" min="0" value={form.amount} onChange={handleChange} required />
         </label>
         <label>
-          사업명 <input name="event_name" placeholder="예: 개강총회" value={form.event_name} onChange={handleChange} required />
+          사업명 <input name="event_name" list="event-names" placeholder="예: 개강총회" value={form.event_name} onChange={handleChange} required />
         </label>
         <label>
-          지출 항목 <input name="category" placeholder="예: 수용비, 급량비" value={form.category} onChange={handleChange} required />
+          지출 항목 <input name="category" list="categories" placeholder="예: 수용비, 급량비" value={form.category} onChange={handleChange} required />
         </label>
         <label>
           지출 내용 <input name="description" value={form.description} onChange={handleChange} required />

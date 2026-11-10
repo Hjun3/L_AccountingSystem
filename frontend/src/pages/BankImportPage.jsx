@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../common'
+import NameSuggestions from '../components/NameSuggestions'
 
 // 아직 등록되지 않은 출금 1건: 총무가 사업명과 비목을 채운 뒤 'AI 점검 후 등록'을 누른다
 function UnregisteredRow({ tx, onRegistered }) {
@@ -29,8 +30,8 @@ function UnregisteredRow({ tx, onRegistered }) {
 
   return (
     <>
-      <td><input placeholder="사업명" value={form.event_name} onChange={set('event_name')} style={{ width: 110 }} /></td>
-      <td><input placeholder="비목" value={form.category} onChange={set('category')} style={{ width: 70 }} /></td>
+      <td><input list="event-names" placeholder="사업명" value={form.event_name} onChange={set('event_name')} style={{ width: 110 }} /></td>
+      <td><input list="categories" placeholder="비목" value={form.category} onChange={set('category')} style={{ width: 70 }} /></td>
       <td><input value={form.description} onChange={set('description')} style={{ width: 180 }} /></td>
       <td style={{ textAlign: 'center' }}><input type="checkbox" checked={form.has_receipt} onChange={set('has_receipt')} /></td>
       <td>
@@ -84,6 +85,7 @@ function BankImportPage() {
   return (
     <div>
       <h2>거래내역 불러오기</h2>
+      <NameSuggestions />
       <p style={{ fontSize: 13 }}>
         카카오뱅크·토스뱅크 앱에서 받은 거래내역 엑셀(xlsx)을 올리면, 출금 내역을 등록된 지출과 날짜·금액으로 맞춰 봅니다.
         <br />

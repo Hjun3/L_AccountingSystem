@@ -74,6 +74,20 @@ def init_db():
             )
             """
         )
+        # 예산: 사업(event_name) x 비목(category)별 예산액. 지출은 같은 사업명·비목끼리 합산해 비교한다
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS budgets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id TEXT NOT NULL,
+                event_name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                amount INTEGER NOT NULL,
+                memo TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         # 캘린더 일정: 사업 일정, 감사 일정 등 (지출과 별개로 총무가 직접 등록)
         conn.execute(
             """
@@ -372,3 +386,73 @@ async def import_bank_excel(file: UploadFile = File(...), password: str = Form("
     # 지출로는 등록됐는데 같은 기간 통장에 출금이 없는 건 (금액·날짜를 잘못 입력했을 수 있음)
     unmatched_expenses = [exp for exp in expenses if exp["id"] not in used]
     return {"transactions": withdrawals, "unmatched_expenses": unmatched_expenses}
+
+
+class BudgetIn(BaseModel):
+    event_name: str
+    category: str
+    amount: int
+    memo: str = ""
+
+
+def budget_overview(conn):
+    """예산 줄마다 같은 사업명·비목의 지출 합계와 잔액을 붙이고, 예산에 없는 지출도 따로 모은다."""
+    budgets = [dict(r) for r in conn.execute("SELECT * FROM budgets ORDER BY event_name, category, id")]
+    spent = {
+        (r["event_name"], r["category"]): r["total"]
+        for r in conn.execute("SELECT event_name, category, SUM(amount) AS total FROM expenses GROUP BY event_name, category")
+    }
+    for b in budgets:
+        b["spent"] = spent.pop((b["event_name"], b["category"]), 0)
+        b["remaining"] = b["amount"] - b["spent"]
+    # 예산 줄에 없는 사업명·비목으로 쓴 지출 (예산 미편성 또는 이름 오타)
+    unbudgeted = [{"event_name": e, "category": c, "spent": t} for (e, c), t in sorted(spent.items())]
+    return {"budgets": budgets, "unbudgeted": unbudgeted}
+
+
+@app.get("/budgets")
+def list_budgets():
+    with get_conn() as conn:
+        return budget_overview(conn)
+
+
+@app.post("/budgets")
+def create_budget(budget: BudgetIn):
+    event_name, category = budget.event_name.strip(), budget.category.strip()
+    if not event_name or not category:
+        raise HTTPException(status_code=400, detail="사업명과 비목을 입력하세요.")
+    if budget.amount < 0:
+        raise HTTPException(status_code=400, detail="예산액은 0 이상이어야 합니다.")
+    with get_conn() as conn:
+        if conn.execute("SELECT 1 FROM budgets WHERE event_name = ? AND category = ?", (event_name, category)).fetchone():
+            raise HTTPException(status_code=400, detail="같은 사업명·비목의 예산이 이미 있습니다. 기존 줄의 금액을 고쳐 주세요.")
+        conn.execute(
+            "INSERT INTO budgets (org_id, event_name, category, amount, memo, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (DEFAULT_ORG_ID, event_name, category, budget.amount, budget.memo.strip(), datetime.now().isoformat(timespec="seconds")),
+        )
+        return budget_overview(conn)
+
+
+class BudgetUpdateIn(BaseModel):
+    amount: int
+    memo: str = ""
+
+
+@app.patch("/budgets/{budget_id}")
+def update_budget(budget_id: int, body: BudgetUpdateIn):
+    if body.amount < 0:
+        raise HTTPException(status_code=400, detail="예산액은 0 이상이어야 합니다.")
+    with get_conn() as conn:
+        cur = conn.execute("UPDATE budgets SET amount = ?, memo = ? WHERE id = ?", (body.amount, body.memo.strip(), budget_id))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="해당 예산을 찾을 수 없습니다.")
+        return budget_overview(conn)
+
+
+@app.delete("/budgets/{budget_id}")
+def delete_budget(budget_id: int):
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM budgets WHERE id = ?", (budget_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="해당 예산을 찾을 수 없습니다.")
+        return budget_overview(conn)

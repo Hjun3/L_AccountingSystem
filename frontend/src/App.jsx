@@ -1,5 +1,6 @@
 import { BrowserRouter, NavLink, Route, Routes } from 'react-router-dom'
 import BankImportPage from './pages/BankImportPage'
+import BudgetPage from './pages/BudgetPage'
 import CalendarPage from './pages/CalendarPage'
 import DashboardPage from './pages/DashboardPage'
 import ExpenseDetailPage from './pages/ExpenseDetailPage'
@@ -16,6 +17,7 @@ function NavMenu() {
       <NavLink to="/expenses/new" style={style}>지출 등록</NavLink>
       <NavLink to="/expenses/import" style={style}>거래내역 불러오기</NavLink>
       <NavLink to="/expenses" end style={style}>지출 목록</NavLink>
+      <NavLink to="/budget" style={style}>예산</NavLink>
       <NavLink to="/calendar" style={style}>캘린더</NavLink>
       <NavLink to="/regulation" style={style}>규정 보기</NavLink>
     </nav>
@@ -35,6 +37,7 @@ function App() {
           <Route path="/expenses/new" element={<ExpenseNewPage />} />
           <Route path="/expenses/import" element={<BankImportPage />} />
           <Route path="/expenses/:id" element={<ExpenseDetailPage />} />
+          <Route path="/budget" element={<BudgetPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/regulation" element={<RegulationPage />} />
         </Routes>
