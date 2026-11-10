@@ -37,7 +37,7 @@ uvicorn main:app --reload
 프론트엔드 (http://localhost:5173)
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -56,6 +56,8 @@ AI 호출 없이 예산·일정·거래내역만 넣으려면
 ```bash
 python sample_data/load_samples.py --no-ai
 ```
+
+(`npm ci`는 `package-lock.json`에 적힌 버전 그대로 설치합니다. 백엔드도 `requirements.txt`에 버전이 고정되어 있습니다. Python 3.13에서 확인했습니다.)
 
 브라우저에서 http://localhost:5173 을 열면 됩니다.
 지출 데이터는 backend/expenses.db 파일에 저장됩니다. (GitHub에는 올라가지 않음)

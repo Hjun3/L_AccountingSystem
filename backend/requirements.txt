@@ -1,7 +1,8 @@
-fastapi
-uvicorn
-openai
-python-dotenv
-python-multipart
-openpyxl
-msoffcrypto-tool
+# 테스트를 마친 버전으로 고정 (Python 3.13에서 확인). 버전을 올릴 때는 실행 확인 후 바꾼다.
+fastapi==0.162.2
+uvicorn==0.54.0
+openai==3.46.0
+python-dotenv==1.2.3
+python-multipart==0.0.32
+openpyxl==3.1.5
+msoffcrypto-tool==6.1.0
