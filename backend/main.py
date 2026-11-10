@@ -281,8 +281,8 @@ async def read_limited(file: UploadFile, limit: int = MAX_UPLOAD_SIZE) -> bytes:
     return b"".join(chunks)
 
 
-# 총무 결정 화면 표시 이름 (저장값 '소명'은 화면에서 '사유 남김'으로)
-FINAL_LABELS = {"대기": "대기", "확정": "확정", "소명": "사유 남김"}
+# 총무 결정 화면 표시 이름 (저장값 '소명'은 화면에서 '사유'로)
+FINAL_LABELS = {"대기": "대기", "확정": "확정", "소명": "사유"}
 
 
 def actor_name():

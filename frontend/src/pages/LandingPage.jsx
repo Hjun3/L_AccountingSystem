@@ -378,7 +378,7 @@ function LandingPage({ onLogin }) {
             </div>
             <div className="lp-decide" style={delay(2, 0.6)}>
               <span>확정</span>
-              <span className="on">사유 남김</span>
+              <span className="on">사유</span>
             </div>
           </div>
         </div>
@@ -397,7 +397,7 @@ function LandingPage({ onLogin }) {
 
       <footer className="lp-foot">
         <div className="lp-wrap">
-          화면 속 예시는 모두 가상 데이터입니다. 현재 AI 점검 기준은 시연용 임시 규정입니다. · 2026 AI 우왕톤
+          화면 속 예시는 실제 자료를 바탕으로 만든 가상 데이터입니다.
         </div>
       </footer>
     </div>
