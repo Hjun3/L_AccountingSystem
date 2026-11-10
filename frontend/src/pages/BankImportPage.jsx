@@ -46,22 +46,31 @@ function BankImportPage() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [file, setFile] = useState(null) // 고른 파일 (비밀번호를 넣고 다시 읽을 때 사용)
+  const [password, setPassword] = useState('') // 파일 비밀번호: 서버에 저장하지 않고 파일을 풀 때만 씀
 
-  async function upload(e) {
-    const file = e.target.files[0]
-    e.target.value = ''
-    if (!file) return
+  async function readFile(target, pw) {
     setError('')
     setLoading(true)
     try {
       const body = new FormData()
-      body.append('file', file)
+      body.append('file', target)
+      body.append('password', pw)
       setResult(await api('/bank/import', { method: 'POST', body }))
     } catch (e) {
+      setResult(null)
       setError(e.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  function chooseFile(e) {
+    const chosen = e.target.files[0]
+    e.target.value = ''
+    if (!chosen) return
+    setFile(chosen)
+    readFile(chosen, password)
   }
 
   // 등록이 끝난 줄은 '등록됨'으로 바꿔 보여준다
@@ -83,8 +92,25 @@ function BankImportPage() {
       <p style={{ fontSize: 12, color: 'gray' }}>
         시연용 가상 파일: backend/sample_data/kakaobank_sample.xlsx, tossbank_sample.xlsx
       </p>
-      <input type="file" accept=".xlsx" onChange={upload} disabled={loading} />
-      {loading && <span> 읽는 중...</span>}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input type="file" accept=".xlsx" onChange={chooseFile} disabled={loading} />
+        <input
+          type="password"
+          placeholder="파일 비밀번호 (있으면)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="off"
+        />
+        {file && (
+          <button onClick={() => readFile(file, password)} disabled={loading}>
+            비밀번호로 다시 읽기
+          </button>
+        )}
+        {loading && <span>읽는 중...</span>}
+      </div>
+      <p style={{ fontSize: 12, color: 'gray' }}>
+        은행 앱에서 이메일로 받은 엑셀은 보통 비밀번호가 걸려 있습니다. 비밀번호는 파일을 여는 데만 쓰고 저장하지 않습니다.
+      </p>
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
       {result && (

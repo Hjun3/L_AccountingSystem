@@ -7,6 +7,7 @@ import io
 import re
 from datetime import datetime
 
+import msoffcrypto
 from openpyxl import load_workbook
 
 # 열 이름 후보 (띄어쓰기는 지우고 비교한다). 앞에 있는 이름을 먼저 찾는다.
@@ -64,12 +65,33 @@ def _find_header(rows):
     raise BankImportError("거래일시와 금액 열을 찾지 못했습니다. 은행에서 받은 거래내역 엑셀 파일인지 확인하세요.")
 
 
-def parse_withdrawals(file_bytes: bytes) -> list[dict]:
+def _decrypt_if_needed(file_bytes: bytes, password: str) -> bytes:
+    """은행 앱이 보내 주는 비밀번호 걸린 엑셀이면 비밀번호로 풀어서 돌려준다. (비밀번호는 저장하지 않음)"""
+    try:
+        office_file = msoffcrypto.OfficeFile(io.BytesIO(file_bytes))
+        encrypted = office_file.is_encrypted()
+    except Exception:
+        return file_bytes  # 일반 xlsx 파일 (암호 없음)
+    if not encrypted:
+        return file_bytes
+    if not password:
+        raise BankImportError("비밀번호가 걸린 파일입니다. 은행에서 안내한 파일 비밀번호를 입력해 주세요.")
+    try:
+        office_file.load_key(password=password)
+        out = io.BytesIO()
+        office_file.decrypt(out)
+        return out.getvalue()
+    except Exception:
+        raise BankImportError("파일 비밀번호가 맞지 않습니다.")
+
+
+def parse_withdrawals(file_bytes: bytes, password: str = "") -> list[dict]:
     """엑셀 파일에서 출금 거래만 골라 [{datetime, date, amount, content, balance}, ...]로 돌려준다."""
+    file_bytes = _decrypt_if_needed(file_bytes, password)
     try:
         workbook = load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
     except Exception:
-        raise BankImportError("엑셀(xlsx) 파일을 열 수 없습니다. 비밀번호가 걸린 파일이나 xls 파일은 xlsx로 다시 저장해 주세요.")
+        raise BankImportError("엑셀(xlsx) 파일을 열 수 없습니다. xls 파일이면 엑셀에서 xlsx로 다시 저장해 주세요.")
 
     rows = [list(r) for r in workbook.worksheets[0].iter_rows(values_only=True)]
     header_index, col = _find_header(rows)

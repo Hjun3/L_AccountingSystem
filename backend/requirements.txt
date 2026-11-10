@@ -4,3 +4,4 @@ openai
 python-dotenv
 python-multipart
 openpyxl
+msoffcrypto-tool

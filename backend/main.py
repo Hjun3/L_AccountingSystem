@@ -5,7 +5,7 @@ from typing import Literal
 
 import uuid
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -339,12 +339,12 @@ async def read_receipt_photo(file: UploadFile = File(...)):
 
 
 @app.post("/bank/import")
-async def import_bank_excel(file: UploadFile = File(...)):
+async def import_bank_excel(file: UploadFile = File(...), password: str = Form("")):
     """거래내역 엑셀의 출금 내역을 읽고, 이미 등록된 지출과 날짜·금액으로 맞춰 본다. (DB에는 저장하지 않음)"""
     if Path(file.filename or "").suffix.lower() != ".xlsx":
         raise HTTPException(status_code=400, detail="xlsx 엑셀 파일만 올릴 수 있습니다.")
     try:
-        withdrawals = parse_withdrawals(await file.read())
+        withdrawals = parse_withdrawals(await file.read(), password)
     except BankImportError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if not withdrawals:
