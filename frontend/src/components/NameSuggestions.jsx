@@ -8,8 +8,8 @@ function NameSuggestions() {
   const [eventNames, setEventNames] = useState([])
 
   useEffect(() => {
-    api('/budgets')
-      .then((r) => setEventNames([...new Set(r.budgets.map((b) => b.event_name))]))
+    api('/budgets/names')
+      .then(setEventNames)
       .catch(() => {}) // 자동완성은 없어도 입력은 되므로 실패해도 무시
   }, [])
 

@@ -109,6 +109,34 @@ def init_db():
             )
             """
         )
+        # 예산 기간: 학기 전 / 1학기 / 2학기. 지출은 날짜가 기간 범위에 들어가면 그 기간으로 본다.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS periods (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                sort_order INTEGER NOT NULL
+            )
+            """
+        )
+        if conn.execute("SELECT COUNT(*) FROM periods").fetchone()[0] == 0:
+            year = datetime.now().year
+            conn.executemany(
+                "INSERT INTO periods (org_id, name, start_date, end_date, sort_order) VALUES (?, ?, ?, ?, ?)",
+                [
+                    (DEFAULT_ORG_ID, "학기 전", f"{year}-01-01", f"{year}-02-28", 1),
+                    (DEFAULT_ORG_ID, "1학기", f"{year}-03-01", f"{year}-07-31", 2),
+                    (DEFAULT_ORG_ID, "2학기", f"{year}-08-01", f"{year}-12-31", 3),
+                ],
+            )
+        budget_columns = [c["name"] for c in conn.execute("PRAGMA table_info(budgets)")]
+        if "period_id" not in budget_columns:
+            conn.execute("ALTER TABLE budgets ADD COLUMN period_id INTEGER")
+            # 기간 구분 전에 넣은 예산은 1학기 예산으로 옮긴다
+            conn.execute("UPDATE budgets SET period_id = (SELECT id FROM periods WHERE name = '1학기') WHERE period_id IS NULL")
         # 캘린더 일정: 사업 일정, 감사 일정 등 (지출과 별개로 총무가 직접 등록)
         conn.execute(
             """
@@ -426,31 +454,80 @@ async def import_bank_excel(file: UploadFile = File(...), password: str = Form("
 
 
 class BudgetIn(BaseModel):
+    period_id: int
     event_name: str
     category: str
     amount: int
     memo: str = ""
 
 
-def budget_overview(conn):
-    """예산 줄마다 같은 사업명·비목의 지출 합계와 잔액을 붙이고, 예산에 없는 지출도 따로 모은다."""
-    budgets = [dict(r) for r in conn.execute("SELECT * FROM budgets ORDER BY event_name, category, id")]
+def get_period(conn, period_id):
+    row = conn.execute("SELECT * FROM periods WHERE id = ?", (period_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="해당 기간을 찾을 수 없습니다.")
+    return dict(row)
+
+
+def budget_overview(conn, period_id):
+    """선택한 기간의 예산 줄마다 그 기간 날짜 안의 지출 합계·잔액을 붙인다.
+    예산에 없는 지출과, 사업별 x 월별 지출 표도 함께 돌려준다."""
+    period = get_period(conn, period_id)
+    in_period = "date BETWEEN ? AND ?"
+    dates = (period["start_date"], period["end_date"])
+
+    budgets = [dict(r) for r in conn.execute(
+        "SELECT * FROM budgets WHERE period_id = ? ORDER BY event_name, category, id", (period_id,))]
     spent = {
         (r["event_name"], r["category"]): r["total"]
-        for r in conn.execute("SELECT event_name, category, SUM(amount) AS total FROM expenses GROUP BY event_name, category")
+        for r in conn.execute(
+            f"SELECT event_name, category, SUM(amount) AS total FROM expenses WHERE {in_period} GROUP BY event_name, category",
+            dates)
     }
     for b in budgets:
         b["spent"] = spent.pop((b["event_name"], b["category"]), 0)
         b["remaining"] = b["amount"] - b["spent"]
     # 예산 줄에 없는 사업명·비목으로 쓴 지출 (예산 미편성 또는 이름 오타)
     unbudgeted = [{"event_name": e, "category": c, "spent": t} for (e, c), t in sorted(spent.items())]
-    return {"budgets": budgets, "unbudgeted": unbudgeted}
+
+    # 월별 지출: [{event_name, month(YYYY-MM), total}] → 화면에서 사업 x 월 표로 만든다
+    monthly = [dict(r) for r in conn.execute(
+        f"SELECT event_name, substr(date, 1, 7) AS month, SUM(amount) AS total FROM expenses WHERE {in_period} "
+        "GROUP BY event_name, month ORDER BY event_name, month", dates)]
+    return {"period": period, "budgets": budgets, "unbudgeted": unbudgeted, "monthly": monthly}
+
+
+@app.get("/periods")
+def list_periods():
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute("SELECT * FROM periods ORDER BY sort_order")]
+
+
+class PeriodIn(BaseModel):
+    start_date: str
+    end_date: str
+
+
+@app.patch("/periods/{period_id}")
+def update_period(period_id: int, body: PeriodIn):
+    if body.start_date > body.end_date:
+        raise HTTPException(status_code=400, detail="시작일이 종료일보다 늦을 수 없습니다.")
+    with get_conn() as conn:
+        get_period(conn, period_id)
+        conn.execute("UPDATE periods SET start_date = ?, end_date = ? WHERE id = ?", (body.start_date, body.end_date, period_id))
+        return [dict(r) for r in conn.execute("SELECT * FROM periods ORDER BY sort_order")]
 
 
 @app.get("/budgets")
-def list_budgets():
+def list_budgets(period_id: int):
     with get_conn() as conn:
-        return budget_overview(conn)
+        return budget_overview(conn, period_id)
+
+
+@app.get("/budgets/names")
+def budget_names():
+    """모든 기간 예산의 사업명 목록 (입력칸 자동완성용)"""
+    with get_conn() as conn:
+        return [r["event_name"] for r in conn.execute("SELECT DISTINCT event_name FROM budgets ORDER BY event_name")]
 
 
 @app.post("/budgets")
@@ -461,13 +538,16 @@ def create_budget(budget: BudgetIn):
     if budget.amount < 0:
         raise HTTPException(status_code=400, detail="예산액은 0 이상이어야 합니다.")
     with get_conn() as conn:
-        if conn.execute("SELECT 1 FROM budgets WHERE event_name = ? AND category = ?", (event_name, category)).fetchone():
-            raise HTTPException(status_code=400, detail="같은 사업명·비목의 예산이 이미 있습니다. 기존 줄의 금액을 고쳐 주세요.")
+        get_period(conn, budget.period_id)
+        if conn.execute("SELECT 1 FROM budgets WHERE period_id = ? AND event_name = ? AND category = ?",
+                        (budget.period_id, event_name, category)).fetchone():
+            raise HTTPException(status_code=400, detail="이 기간에 같은 사업명·비목의 예산이 이미 있습니다. 기존 줄의 금액을 고쳐 주세요.")
         conn.execute(
-            "INSERT INTO budgets (org_id, event_name, category, amount, memo, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (DEFAULT_ORG_ID, event_name, category, budget.amount, budget.memo.strip(), datetime.now().isoformat(timespec="seconds")),
+            "INSERT INTO budgets (org_id, period_id, event_name, category, amount, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (DEFAULT_ORG_ID, budget.period_id, event_name, category, budget.amount, budget.memo.strip(),
+             datetime.now().isoformat(timespec="seconds")),
         )
-        return budget_overview(conn)
+        return budget_overview(conn, budget.period_id)
 
 
 class BudgetUpdateIn(BaseModel):
@@ -475,42 +555,44 @@ class BudgetUpdateIn(BaseModel):
     memo: str = ""
 
 
+def _budget_period(conn, budget_id):
+    row = conn.execute("SELECT period_id FROM budgets WHERE id = ?", (budget_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="해당 예산을 찾을 수 없습니다.")
+    return row["period_id"]
+
+
 @app.patch("/budgets/{budget_id}")
 def update_budget(budget_id: int, body: BudgetUpdateIn):
     if body.amount < 0:
         raise HTTPException(status_code=400, detail="예산액은 0 이상이어야 합니다.")
     with get_conn() as conn:
-        cur = conn.execute("UPDATE budgets SET amount = ?, memo = ? WHERE id = ?", (body.amount, body.memo.strip(), budget_id))
-        if cur.rowcount == 0:
-            raise HTTPException(status_code=404, detail="해당 예산을 찾을 수 없습니다.")
-        return budget_overview(conn)
+        period_id = _budget_period(conn, budget_id)
+        conn.execute("UPDATE budgets SET amount = ?, memo = ? WHERE id = ?", (body.amount, body.memo.strip(), budget_id))
+        return budget_overview(conn, period_id)
 
 
 @app.delete("/budgets/{budget_id}")
 def delete_budget(budget_id: int):
     with get_conn() as conn:
-        cur = conn.execute("DELETE FROM budgets WHERE id = ?", (budget_id,))
-        if cur.rowcount == 0:
-            raise HTTPException(status_code=404, detail="해당 예산을 찾을 수 없습니다.")
-        return budget_overview(conn)
+        period_id = _budget_period(conn, budget_id)
+        conn.execute("DELETE FROM budgets WHERE id = ?", (budget_id,))
+        return budget_overview(conn, period_id)
 
 
 @app.get("/reports/settlement.xlsx")
-def settlement_report(start: str = "", end: str = ""):
-    """결산보고서 엑셀을 내려준다. start/end(YYYY-MM-DD)를 주면 그 기간의 지출만 집계한다."""
-    query, params = "SELECT * FROM expenses WHERE 1=1", []
-    if start:
-        query += " AND date >= ?"
-        params.append(start)
-    if end:
-        query += " AND date <= ?"
-        params.append(end)
+def settlement_report(period_id: int):
+    """선택한 기간(학기 전/1학기/2학기)의 결산보고서 엑셀을 내려준다."""
     with get_conn() as conn:
-        expenses = [dict(r) for r in conn.execute(query, params)]
-        budgets = [dict(r) for r in conn.execute("SELECT event_name, category, amount FROM budgets")]
-    period = f"{start or '처음'} ~ {end or '현재'}"
+        p = get_period(conn, period_id)
+        expenses = [dict(r) for r in conn.execute(
+            "SELECT * FROM expenses WHERE date BETWEEN ? AND ?", (p["start_date"], p["end_date"]))]
+        budgets = [dict(r) for r in conn.execute(
+            "SELECT event_name, category, amount FROM budgets WHERE period_id = ?", (period_id,))]
+    period = f"{p['name']} ({p['start_date']} ~ {p['end_date']})"
+    start, end = p["start_date"], p["end_date"]
     content = build_settlement(budgets, expenses, period)
-    filename = f"settlement_{start or 'all'}_{end or 'now'}.xlsx"
+    filename = f"settlement_{start}_{end}.xlsx"
     return Response(
         content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
