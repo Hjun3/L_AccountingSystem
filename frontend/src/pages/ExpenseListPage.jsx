@@ -13,7 +13,7 @@ function matchesFilter(expense, filter) {
   return expense.ai_status === filter
 }
 
-// 지출 목록 페이지: 점검 결과를 보고 바로 확정/소명할 수 있다
+// 지출 목록 페이지: 점검 결과를 보고 바로 확정하거나 사유를 남길 수 있다
 function ExpenseListPage() {
   const [expenses, setExpenses] = useState([])
   const [filter, setFilter] = useState('전체')

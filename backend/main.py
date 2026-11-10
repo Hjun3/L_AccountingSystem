@@ -281,6 +281,10 @@ async def read_limited(file: UploadFile, limit: int = MAX_UPLOAD_SIZE) -> bytes:
     return b"".join(chunks)
 
 
+# 총무 결정 화면 표시 이름 (저장값 '소명'은 화면에서 '사유 남김'으로)
+FINAL_LABELS = {"대기": "대기", "확정": "확정", "소명": "사유 남김"}
+
+
 def actor_name():
     """지금 요청한 사용자 이름 (기록용). 스크립트에서 실행하면 '시스템'."""
     user = current_user.get()
@@ -349,7 +353,7 @@ class DecisionIn(BaseModel):
 def decide_expense(expense_id: int, decision: DecisionIn):
     explanation = decision.explanation.strip()
     if decision.final_status == "소명" and not explanation:
-        raise HTTPException(status_code=400, detail="소명 내용을 입력하세요.")
+        raise HTTPException(status_code=400, detail="사유를 입력하세요.")
     # 소명일 때만 소명 내용을 남기고, 확정이나 취소면 비운다
     new_explanation = explanation if decision.final_status == "소명" else None
 
@@ -448,8 +452,8 @@ def list_logs():
         }
     logs = [dict(c) for c in changes]
     for d in decisions:
-        to = "취소" if d["to_status"] == "대기" else d["to_status"]
-        detail = f"{d['from_status']} → {to}" + (f" ({d['explanation']})" if d["explanation"] else "")
+        to = "취소" if d["to_status"] == "대기" else FINAL_LABELS.get(d["to_status"], d["to_status"])
+        detail = f"{FINAL_LABELS.get(d['from_status'], d['from_status'])} → {to}" + (f" ({d['explanation']})" if d["explanation"] else "")
         logs.append({"id": d["id"], "expense_id": d["expense_id"], "action": "총무 결정", "detail": detail,
                      "created_at": d["created_at"], "actor": d["actor"]})
     for log in logs:

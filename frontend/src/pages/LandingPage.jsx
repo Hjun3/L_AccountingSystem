@@ -42,7 +42,7 @@ function DeskScene() {
   const [ref, inView] = useReveal(0.4)
   const [stage, setStage] = useState('') // '' → 's1'(흩어짐) → 's2'(정리됨) → 처음부터 반복
 
-  // 화면에 보이기 시작하면 9초 주기로 반복: 흩어짐(0.05초) → 정리(2.6초) → 다시 흩어질 준비(8초)
+  // 화면에 보이기 시작하면 12초 주기로 반복: 흩어짐(5초 동안 보여 줌) → 정리(7초 동안) → 다시 처음부터
   useEffect(() => {
     if (!inView) return
     let timers = []
@@ -50,8 +50,8 @@ function DeskScene() {
       setStage('')
       timers = [
         setTimeout(() => setStage('s1'), 50),
-        setTimeout(() => setStage('s2'), 2600),
-        setTimeout(play, 9000),
+        setTimeout(() => setStage('s2'), 5000),
+        setTimeout(play, 12000),
       ]
     }
     play()
@@ -61,8 +61,8 @@ function DeskScene() {
   return (
     <section className="lp-desk-sec">
       <div className="lp-wrap" ref={ref}>
-        <h2>감사 일주일 전,<br />총무 책상은 늘 이렇죠</h2>
-        <p className="desc">영수증은 사진첩에, 정산은 엑셀에, 증빙 요청은 카톡에. 한 곳에 모으면 지출 한 건이 카드 한 장이 됩니다.</p>
+        <h2>정산할 때마다<br />파일부터 찾고 있다면</h2>
+        <p className="desc">영수증은 사진첩에, 정산은 엑셀에, 증빙 요청은 카톡에.<br />한 곳에 모으면 지출 한 건이 카드 한 장이 됩니다.</p>
         <div className={`lp-desk ${stage}`}>
           {DESK_ITEMS.map((it, i) => (
             <div key={i} className={`lp-item ${it.cls}`}
@@ -364,7 +364,7 @@ function LandingPage({ onLogin }) {
             <div className="lp-kicker">AI는 동료</div>
             <h2>AI는 알려 주고,<br />결정은 총무가 해요</h2>
             <p className="desc">
-              AI가 회계 규정을 근거로 챙길 것을 짚어 줍니다. 확정할지, 소명을 남길지는 총무가 정하고 모든 결정은 기록으로 남습니다.
+              AI가 회계 규정을 근거로 챙길 것을 짚어 줍니다. 확정할지, 사유를 남길지는 총무가 정하고 모든 결정은 기록으로 남습니다.
             </p>
           </div>
           <div ref={chatRef} className={`lp-chat ${chatIn ? 'in' : ''}`}>
@@ -374,11 +374,11 @@ function LandingPage({ onLogin }) {
               <div className="todo">☐ 수령인 학생증 사본 받기</div>
             </div>
             <div className="lp-msg me" style={delay(1, 0.6)}>
-              환급 대상자가 휴학 중이라 다음 주에 받기로 했어요. 소명으로 남길게요.
+              환급 대상자가 휴학 중이라 다음 주에 받기로 했어요. 사유로 남길게요.
             </div>
             <div className="lp-decide" style={delay(2, 0.6)}>
               <span>확정</span>
-              <span className="on">소명</span>
+              <span className="on">사유 남김</span>
             </div>
           </div>
         </div>
