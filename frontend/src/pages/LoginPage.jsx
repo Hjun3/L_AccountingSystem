@@ -22,7 +22,8 @@ function LoginPage({ onLogin, onBack }) {
 
   return (
     <div style={{ maxWidth: 320, margin: '80px auto' }}>
-      <h1 style={{ fontSize: 22 }}>학생회 회계 점검 동료</h1>
+      <h1 style={{ fontSize: 26, marginBottom: 4 }}>짝<span style={{ color: 'var(--primary)' }}>장부</span></h1>
+      <p className="muted" style={{ marginTop: 0, marginBottom: 20 }}>회계 장부를 같이 쓰는 짝꿍</p>
       <form onSubmit={submit} style={{ display: 'grid', gap: 8 }}>
         <input placeholder="아이디" autoComplete="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
         <input type="password" placeholder="비밀번호" autoComplete="current-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />

@@ -21,7 +21,7 @@ import UsersPage from './pages/UsersPage'
 function Sidebar({ user, onLogout, terms, termId, setTermId }) {
   return (
     <aside className="sidebar no-print">
-      <div className="brand">학생회 회계 동료</div>
+      <div className="brand">짝<span style={{ color: 'var(--primary)' }}>장부</span></div>
       {/* 임기 선택: 대시보드·지출 목록·예산이 이 임기 기준으로 보인다 */}
       <select value={termId ?? 'all'} onChange={(e) => setTermId(e.target.value === 'all' ? null : Number(e.target.value))} title="임기 선택">
         {terms.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}

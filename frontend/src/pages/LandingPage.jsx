@@ -40,21 +40,22 @@ const DESK_ITEMS = [
 
 function DeskScene() {
   const [ref, inView] = useReveal(0.4)
-  const [stage, setStage] = useState('') // '' → 's1'(흩어짐) → 's2'(정리됨)
-  const timers = useRef([])
+  const [stage, setStage] = useState('') // '' → 's1'(흩어짐) → 's2'(정리됨) → 처음부터 반복
 
-  function play() {
-    timers.current.forEach(clearTimeout)
-    setStage('')
-    timers.current = [
-      setTimeout(() => setStage('s1'), 50),
-      setTimeout(() => setStage('s2'), 2600),
-    ]
-  }
-
+  // 화면에 보이기 시작하면 9초 주기로 반복: 흩어짐(0.05초) → 정리(2.6초) → 다시 흩어질 준비(8초)
   useEffect(() => {
-    if (inView) play()
-    return () => timers.current.forEach(clearTimeout)
+    if (!inView) return
+    let timers = []
+    const play = () => {
+      setStage('')
+      timers = [
+        setTimeout(() => setStage('s1'), 50),
+        setTimeout(() => setStage('s2'), 2600),
+        setTimeout(play, 9000),
+      ]
+    }
+    play()
+    return () => timers.forEach(clearTimeout)
   }, [inView])
 
   return (
@@ -80,7 +81,6 @@ function DeskScene() {
             </div>
           </div>
         </div>
-        <button className="lp-replay" onClick={play}>다시 보기</button>
       </div>
     </section>
   )
@@ -199,7 +199,7 @@ function LaptopScreen({ active, only }) {
     <div className="lp-laptop">
       <div className="lp-screen">
         <div className="side">
-          <b>학생회 회계 동료</b>
+          <b>짝장부</b>
           {MENU.map((m) => <span key={m} className={m === STEPS[shown].menu ? 'on' : ''}>{m}</span>)}
         </div>
         <div className="main">
@@ -251,9 +251,34 @@ function Showcase() {
 }
 
 // ---------------- 랜딩페이지 ----------------
+// 상단 바 메뉴: 실제 서비스 화면 이름. 누르면 로그인 안내 창이 뜬다.
+const TOP_MENU = ['대시보드', '지출 목록', '예산·결산', '캘린더']
+
+// 로그인 안내 창 (Esc 키나 바깥을 눌러도 닫힘)
+function LoginNotice({ menu, onLogin, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="lp-modal-bg" onClick={onClose}>
+      <div className="lp-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="lp-modal-title">로그인 후 이용할 수 있어요</div>
+        <p>{menu} 화면은 로그인한 뒤에 볼 수 있어요.</p>
+        <div className="lp-modal-actions">
+          <button className="lp-btn ghost small" onClick={onClose}>닫기</button>
+          <button className="lp-btn primary small" onClick={onLogin}>로그인하기</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function LandingPage({ onLogin }) {
   const [chatRef, chatIn] = useReveal()
   const [aiTextRef, aiTextIn] = useReveal()
+  const [notice, setNotice] = useState(null) // 로그인 안내 창에 보여 줄 메뉴 이름
 
   // 위 메뉴: 주소에 #이 남지 않게 부드럽게 스크롤만
   const go = (id) => (e) => {
@@ -265,10 +290,11 @@ function LandingPage({ onLogin }) {
     <div className="lp">
       <header className="lp-top">
         <div className="lp-wrap">
-          <div className="lp-logo">학생회 회계 <span>동료</span></div>
+          <div className="lp-logo">짝<span>장부</span></div>
           <nav>
-            <a href="#how" onClick={go('how')}>기능</a>
-            <a href="#ai" onClick={go('ai')}>AI 동료</a>
+            {TOP_MENU.map((m) => (
+              <button key={m} className="lp-navbtn" onClick={() => setNotice(m)}>{m}</button>
+            ))}
           </nav>
           <button className="lp-btn primary small lp-login" onClick={onLogin}>로그인</button>
         </div>
@@ -363,9 +389,11 @@ function LandingPage({ onLogin }) {
         <div className="lp-wrap">
           <h2>이번 학기 장부,<br />같이 정리해요</h2>
           <button className="lp-btn primary" onClick={onLogin}>로그인하고 시작하기</button>
-          <p className="muted" style={{ marginTop: 14 }}>계정은 학생회 관리자가 만들어 줍니다.</p>
+          <p className="muted" style={{ marginTop: 14 }}>계정은 관리자가 만들어 줍니다.</p>
         </div>
       </section>
+
+      {notice && <LoginNotice menu={notice} onLogin={onLogin} onClose={() => setNotice(null)} />}
 
       <footer className="lp-foot">
         <div className="lp-wrap">
