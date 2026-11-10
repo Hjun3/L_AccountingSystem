@@ -22,9 +22,10 @@ MVP 이후 추가 후보 (MVP 완성 전에는 손대지 않음)
 
 ## 화면 구성 (frontend/src/pages/)
 - 대시보드 (/): 다가오는 일정, AI 점검 결과 개수, 결정 대기 중인 주의·위반 건, 사업별·비목별 합계
-- 지출 등록 (/expenses/new): 저장하면 AI 점검 후 상세 페이지로 이동
+- 지출 등록 (/expenses/new): 직접 입력 또는 영수증 사진을 AI가 읽어 폼 채우기(총무 확인 후 저장). 저장하면 AI 점검 후 상세 페이지로 이동하고, 읽은 사진은 증빙으로 자동 첨부
+- 거래내역 불러오기 (/expenses/import): 카카오뱅크·토스뱅크 거래내역 엑셀(xlsx)의 출금을 등록된 지출과 날짜·금액으로 맞춰 보고, 미등록 건은 사업명·비목을 채워 등록. 통장에 출금이 없는 지출도 표시. 파일은 저장하지 않음
 - 지출 목록 (/expenses): 점검 결과 필터, 목록에서 바로 확정/소명
-- 지출 상세 (/expenses/:id): 지출 정보, AI 점검 내용, 총무 결정과 이력
+- 지출 상세 (/expenses/:id): 지출 정보, AI 점검 내용, 총무 결정과 이력, 메모, 증빙 파일(사진·PDF) 첨부
 - 캘린더 (/calendar): 날짜별 지출(점검 결과 색)과 일정(사업/감사/기타), 일정 등록·삭제
 - 규정 보기 (/regulation): AI가 쓰는 규정 파일 내용
 
@@ -35,7 +36,7 @@ MVP 이후 추가 후보 (MVP 완성 전에는 손대지 않음)
 
 ## 기술 스택
 - 프론트엔드: React, react-router-dom(페이지 이동)
-- 백엔드: Python, FastAPI
+- 백엔드: Python, FastAPI, python-multipart(파일 업로드), openpyxl(엑셀 읽기)
 - DB: SQLite
 - LLM API: OpenAI (모델은 backend/.env의 OPENAI_MODEL로 변경)
 - 배포: [미정]
@@ -44,7 +45,8 @@ MVP 이후 추가 후보 (MVP 완성 전에는 손대지 않음)
 - frontend/ : React 앱
 - backend/ : FastAPI 서버
 - backend/regulations/ : 회계 규정 텍스트 파일
-- backend/sample_data/ : 시연용 샘플 지출 데이터
+- backend/sample_data/ : 시연용 샘플 지출 데이터, 가상 거래내역 엑셀
+- backend/uploads/ : 첨부된 증빙 파일 (GitHub에 올리지 않음)
 
 ## 회계 규정 처리 방식
 - 규정은 backend/regulations/ 안의 텍스트 파일로 관리하고, 코드 안에 규정 내용을 직접 쓰지 않는다.
@@ -65,7 +67,16 @@ MVP 이후 추가 후보 (MVP 완성 전에는 손대지 않음)
 - ai_reason: 판단 이유 (한두 문장)
 - final_status: 총무 결정 (대기 / 확정 / 소명)
 - explanation: 총무가 작성한 소명 내용
+- memo: 총무 참고용 메모 (AI 점검에는 쓰지 않음)
 - created_at: 등록 시각
+
+## 데이터 구조 (attachments 테이블)
+지출에 붙인 증빙 파일. 실제 파일은 backend/uploads/에 무작위 이름으로 저장한다.
+- id: 고유 번호
+- expense_id: 대상 지출 번호
+- file_name: 원래 파일 이름
+- stored_name: 저장된 파일 이름
+- created_at: 첨부 시각
 
 ## 데이터 구조 (decision_logs 테이블)
 총무가 확정/소명/취소를 누를 때마다 한 줄씩 기록한다. 기록은 지우거나 고치지 않는다.
@@ -89,6 +100,10 @@ MVP 이후 추가 후보 (MVP 완성 전에는 손대지 않음)
 ## AI 점검 출력 형식
 LLM은 반드시 아래 JSON만 반환하도록 프롬프트를 작성하고, 백엔드에서 파싱 실패 시 에러를 표시한다.
 {"status": "적합|주의|위반", "clause": "근거 조항", "reason": "판단 이유"}
+
+## 영수증 읽기 출력 형식
+영수증 사진은 같은 OpenAI 모델로 읽고, 아래 JSON만 반환하게 한다. 읽은 값은 폼에 채우기만 하고 총무가 확인 후 저장한다.
+{"is_receipt": true|false, "date": "YYYY-MM-DD", "amount": 정수, "store": "상호명", "items": "품목 요약"}
 
 ## 대회 규칙상 지킬 것
 - 점검 결과를 미리 정해둔 값으로 보여주지 않는다. 시연에서도 실제 LLM 호출 결과를 사용한다.

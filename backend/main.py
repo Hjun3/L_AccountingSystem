@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from bank_import import BankImportError, parse_withdrawals
 from ai_check import RECEIPT_MIME_TYPES, REGULATION_PATH, AICheckError, check_expense, read_receipt
 
 DB_PATH = Path(__file__).parent / "expenses.db"
@@ -335,3 +336,39 @@ async def read_receipt_photo(file: UploadFile = File(...)):
         return read_receipt(content, ext)
     except AICheckError as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/bank/import")
+async def import_bank_excel(file: UploadFile = File(...)):
+    """거래내역 엑셀의 출금 내역을 읽고, 이미 등록된 지출과 날짜·금액으로 맞춰 본다. (DB에는 저장하지 않음)"""
+    if Path(file.filename or "").suffix.lower() != ".xlsx":
+        raise HTTPException(status_code=400, detail="xlsx 엑셀 파일만 올릴 수 있습니다.")
+    try:
+        withdrawals = parse_withdrawals(await file.read())
+    except BankImportError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not withdrawals:
+        return {"transactions": [], "unmatched_expenses": []}
+
+    first_date = min(w["date"] for w in withdrawals)
+    last_date = max(w["date"] for w in withdrawals)
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, date, amount, event_name, description FROM expenses WHERE date BETWEEN ? AND ? ORDER BY date, id",
+            (first_date, last_date),
+        ).fetchall()
+    expenses = [dict(r) for r in rows]
+
+    # 출금 1건마다 날짜와 금액이 같은 지출을 하나씩 짝지어 준다 (한 지출은 한 번만 짝지음)
+    used = set()
+    for w in withdrawals:
+        w["matched_expense_id"] = None
+        for exp in expenses:
+            if exp["id"] not in used and exp["date"] == w["date"] and exp["amount"] == w["amount"]:
+                w["matched_expense_id"] = exp["id"]
+                used.add(exp["id"])
+                break
+
+    # 지출로는 등록됐는데 같은 기간 통장에 출금이 없는 건 (금액·날짜를 잘못 입력했을 수 있음)
+    unmatched_expenses = [exp for exp in expenses if exp["id"] not in used]
+    return {"transactions": withdrawals, "unmatched_expenses": unmatched_expenses}
