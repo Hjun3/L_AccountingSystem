@@ -23,7 +23,7 @@ for item in samples:
     # 이미 들어간 샘플(날짜·금액·내용이 같음)은 건너뛴다. 다시 실행해도 AI 호출(토큰)이 낭비되지 않게.
     with get_conn() as conn:
         exists = conn.execute(
-            "SELECT 1 FROM expenses WHERE date = ? AND amount = ? AND description = ?",
+            "SELECT 1 FROM expenses WHERE deleted_at IS NULL AND date = ? AND amount = ? AND description = ?",
             (item["date"], item["amount"], item["description"]),
         ).fetchone()
     if exists:

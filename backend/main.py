@@ -67,6 +67,23 @@ def init_db():
         # AI가 알려 준 "챙길 것" 목록: [{"text": "...", "done": false}, ...] 을 JSON 글자로 저장
         if "ai_todos" not in columns:
             conn.execute("ALTER TABLE expenses ADD COLUMN ai_todos TEXT")
+        # 수정 시각(AI 점검 이후 고쳤는지 표시용)과 삭제 표시. 삭제는 실제로 지우지 않고 표시만 한다.
+        if "updated_at" not in columns:
+            conn.execute("ALTER TABLE expenses ADD COLUMN updated_at TEXT")
+        if "deleted_at" not in columns:
+            conn.execute("ALTER TABLE expenses ADD COLUMN deleted_at TEXT")
+        # 변경 기록: 지출 수정·삭제, 증빙 첨부·삭제를 한 줄씩 남긴다 (지우거나 고치지 않음)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS change_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                expense_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                detail TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         # 지출에 붙인 증빙 파일 (영수증 사진 등). 실제 파일은 uploads 폴더에 저장한다
         conn.execute(
             """
@@ -179,6 +196,27 @@ class ExpenseIn(BaseModel):
     has_receipt: bool
 
 
+def now_text():
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def add_change_log(conn, expense_id, action, detail=""):
+    conn.execute(
+        "INSERT INTO change_logs (expense_id, action, detail, created_at) VALUES (?, ?, ?, ?)",
+        (expense_id, action, detail, now_text()),
+    )
+
+
+def get_active_expense(conn, expense_id):
+    """수정·결정·첨부 등을 하기 전에 지출이 있고 삭제되지 않았는지 확인한다."""
+    row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+    if row["deleted_at"]:
+        raise HTTPException(status_code=400, detail="삭제된 지출은 바꿀 수 없습니다.")
+    return row
+
+
 @app.post("/expenses")
 def create_expense(expense: ExpenseIn):
     # 저장 전에 AI 점검을 먼저 한다. 실패하면 저장하지 않고 에러를 돌려준다.
@@ -229,9 +267,7 @@ def decide_expense(expense_id: int, decision: DecisionIn):
     new_explanation = explanation if decision.final_status == "소명" else None
 
     with get_conn() as conn:
-        old = conn.execute("SELECT final_status FROM expenses WHERE id = ?", (expense_id,)).fetchone()
-        if old is None:
-            raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+        old = get_active_expense(conn, expense_id)
         conn.execute(
             "UPDATE expenses SET final_status = ?, explanation = ? WHERE id = ?",
             (decision.final_status, new_explanation, expense_id),
@@ -251,7 +287,7 @@ def decide_expense(expense_id: int, decision: DecisionIn):
 @app.get("/expenses")
 def list_expenses():
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM expenses ORDER BY id DESC").fetchall()
+        rows = conn.execute("SELECT * FROM expenses WHERE deleted_at IS NULL ORDER BY id DESC").fetchall()
         return [to_dict(r, conn) for r in rows]
 
 
@@ -262,6 +298,72 @@ def get_expense(expense_id: int):
         if row is None:
             raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
         return to_dict(row, conn)
+
+
+# 수정할 수 있는 칸과 기록에 쓸 이름
+EDITABLE_FIELDS = {"date": "날짜", "amount": "금액", "event_name": "사업명", "category": "비목",
+                   "description": "지출 내용", "has_receipt": "증빙"}
+
+
+@app.put("/expenses/{expense_id}")
+def update_expense(expense_id: int, expense: ExpenseIn):
+    """지출 내용을 고친다. 바뀐 칸은 '수정 전 → 수정 후'로 기록에 남긴다. (AI 점검은 다시 하지 않음)"""
+    with get_conn() as conn:
+        old = dict(get_active_expense(conn, expense_id))
+        new = expense.model_dump()
+        new["has_receipt"] = int(new["has_receipt"])
+        changes = [f"{label}: {old[k]} → {new[k]}" for k, label in EDITABLE_FIELDS.items() if old[k] != new[k]]
+        if changes:
+            conn.execute(
+                "UPDATE expenses SET date = ?, amount = ?, event_name = ?, category = ?, description = ?, "
+                "has_receipt = ?, updated_at = ? WHERE id = ?",
+                (new["date"], new["amount"], new["event_name"], new["category"], new["description"],
+                 new["has_receipt"], now_text(), expense_id),
+            )
+            add_change_log(conn, expense_id, "지출 수정", " / ".join(changes))
+        row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
+        return to_dict(row, conn)
+
+
+class DeleteIn(BaseModel):
+    reason: str = ""
+
+
+@app.delete("/expenses/{expense_id}")
+def delete_expense(expense_id: int, body: DeleteIn):
+    """지출을 삭제 표시한다. 목록·예산·결산에서는 빠지지만 데이터와 기록은 남는다."""
+    with get_conn() as conn:
+        old = get_active_expense(conn, expense_id)
+        conn.execute("UPDATE expenses SET deleted_at = ? WHERE id = ?", (now_text(), expense_id))
+        summary = f"{old['date']} {old['event_name']} {old['amount']:,}원 - {old['description']}"
+        reason = body.reason.strip()
+        add_change_log(conn, expense_id, "지출 삭제", summary + (f" (사유: {reason})" if reason else ""))
+    return {"deleted": expense_id}
+
+
+@app.get("/logs")
+def list_logs():
+    """기록 화면용: 지출 수정·삭제, 증빙 첨부·삭제, 총무 결정 기록을 최신순으로 합쳐서 돌려준다."""
+    with get_conn() as conn:
+        changes = conn.execute(
+            "SELECT id, expense_id, action, detail, created_at FROM change_logs"
+        ).fetchall()
+        decisions = conn.execute(
+            "SELECT id, expense_id, from_status, to_status, explanation, created_at FROM decision_logs"
+        ).fetchall()
+        expenses = {
+            r["id"]: dict(r) for r in conn.execute("SELECT id, date, event_name, amount, description, deleted_at FROM expenses")
+        }
+    logs = [dict(c) for c in changes]
+    for d in decisions:
+        to = "취소" if d["to_status"] == "대기" else d["to_status"]
+        detail = f"{d['from_status']} → {to}" + (f" ({d['explanation']})" if d["explanation"] else "")
+        logs.append({"id": d["id"], "expense_id": d["expense_id"], "action": "총무 결정", "detail": detail, "created_at": d["created_at"]})
+    for log in logs:
+        log["expense"] = expenses.get(log["expense_id"])
+    # 같은 초에 생긴 기록은 저장된 순서(id)로 정렬한다
+    logs.sort(key=lambda x: (x["created_at"], x["id"]), reverse=True)
+    return logs
 
 
 def to_dict(row, conn):
@@ -336,9 +438,8 @@ class MemoIn(BaseModel):
 def update_memo(expense_id: int, body: MemoIn):
     # 메모는 총무 참고용이라 AI 점검에는 쓰지 않는다
     with get_conn() as conn:
-        cur = conn.execute("UPDATE expenses SET memo = ? WHERE id = ?", (body.memo.strip(), expense_id))
-        if cur.rowcount == 0:
-            raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+        get_active_expense(conn, expense_id)
+        conn.execute("UPDATE expenses SET memo = ? WHERE id = ?", (body.memo.strip(), expense_id))
         row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
         return to_dict(row, conn)
 
@@ -353,8 +454,7 @@ async def upload_attachment(expense_id: int, file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="파일은 10MB 이하만 올릴 수 있습니다.")
 
     with get_conn() as conn:
-        if conn.execute("SELECT id FROM expenses WHERE id = ?", (expense_id,)).fetchone() is None:
-            raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+        expense = get_active_expense(conn, expense_id)
         # 같은 이름의 파일이 덮어써지지 않도록 저장할 때는 무작위 이름을 쓴다
         stored_name = uuid.uuid4().hex + ext
         UPLOAD_DIR.mkdir(exist_ok=True)
@@ -363,6 +463,12 @@ async def upload_attachment(expense_id: int, file: UploadFile = File(...)):
             "INSERT INTO attachments (expense_id, file_name, stored_name, created_at) VALUES (?, ?, ?, ?)",
             (expense_id, file.filename, stored_name, datetime.now().isoformat(timespec="seconds")),
         )
+        # 파일을 첨부하면 '증빙 있음'으로 바꾼다
+        detail = file.filename
+        if not expense["has_receipt"]:
+            conn.execute("UPDATE expenses SET has_receipt = 1 WHERE id = ?", (expense_id,))
+            detail += " (증빙: 없음 → 있음)"
+        add_change_log(conn, expense_id, "증빙 첨부", detail)
         row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
         return to_dict(row, conn)
 
@@ -383,7 +489,9 @@ def delete_attachment(attachment_id: int):
         row = conn.execute("SELECT * FROM attachments WHERE id = ?", (attachment_id,)).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="해당 파일을 찾을 수 없습니다.")
+        get_active_expense(conn, row["expense_id"])
         conn.execute("DELETE FROM attachments WHERE id = ?", (attachment_id,))
+        add_change_log(conn, row["expense_id"], "증빙 삭제", row["file_name"])
     (UPLOAD_DIR / row["stored_name"]).unlink(missing_ok=True)
     return {"deleted": attachment_id}
 
@@ -433,7 +541,7 @@ async def import_bank_excel(file: UploadFile = File(...), password: str = Form("
     last_date = max(w["date"] for w in withdrawals)
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT id, date, amount, event_name, description FROM expenses WHERE date BETWEEN ? AND ? ORDER BY date, id",
+            "SELECT id, date, amount, event_name, description FROM expenses WHERE deleted_at IS NULL AND date BETWEEN ? AND ? ORDER BY date, id",
             (first_date, last_date),
         ).fetchall()
     expenses = [dict(r) for r in rows]
@@ -472,7 +580,7 @@ def budget_overview(conn, period_id):
     """선택한 기간의 예산 줄마다 그 기간 날짜 안의 지출 합계·잔액을 붙인다.
     예산에 없는 지출과, 사업별 x 월별 지출 표도 함께 돌려준다."""
     period = get_period(conn, period_id)
-    in_period = "date BETWEEN ? AND ?"
+    in_period = "deleted_at IS NULL AND date BETWEEN ? AND ?"
     dates = (period["start_date"], period["end_date"])
 
     budgets = [dict(r) for r in conn.execute(
@@ -586,7 +694,7 @@ def settlement_report(period_id: int):
     with get_conn() as conn:
         p = get_period(conn, period_id)
         expenses = [dict(r) for r in conn.execute(
-            "SELECT * FROM expenses WHERE date BETWEEN ? AND ?", (p["start_date"], p["end_date"]))]
+            "SELECT * FROM expenses WHERE deleted_at IS NULL AND date BETWEEN ? AND ?", (p["start_date"], p["end_date"]))]
         budgets = [dict(r) for r in conn.execute(
             "SELECT event_name, category, amount FROM budgets WHERE period_id = ?", (period_id,))]
     period = f"{p['name']} ({p['start_date']} ~ {p['end_date']})"
@@ -608,9 +716,7 @@ class TodoDoneIn(BaseModel):
 def toggle_todo(expense_id: int, index: int, body: TodoDoneIn):
     """챙길 것 목록의 index번째 항목을 완료/미완료로 바꾼다."""
     with get_conn() as conn:
-        row = conn.execute("SELECT ai_todos FROM expenses WHERE id = ?", (expense_id,)).fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+        row = get_active_expense(conn, expense_id)
         todos = json.loads(row["ai_todos"]) if row["ai_todos"] else []
         if not 0 <= index < len(todos):
             raise HTTPException(status_code=404, detail="해당 항목을 찾을 수 없습니다.")

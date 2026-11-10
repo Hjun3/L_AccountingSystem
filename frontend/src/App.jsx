@@ -7,6 +7,7 @@ import ExpenseDetailPage from './pages/ExpenseDetailPage'
 import ExpenseListPage from './pages/ExpenseListPage'
 import ExpenseNewPage from './pages/ExpenseNewPage'
 import FormPage from './pages/FormPage'
+import LogsPage from './pages/LogsPage'
 import RegulationPage from './pages/RegulationPage'
 
 // 상단 메뉴: 현재 보고 있는 페이지는 굵게 표시
@@ -21,6 +22,8 @@ function NavMenu() {
       <NavLink to="/budget" style={style}>예산</NavLink>
       <NavLink to="/calendar" style={style}>캘린더</NavLink>
       <NavLink to="/regulation" style={style}>규정 보기</NavLink>
+      <span style={{ flex: 1 }} />
+      <NavLink to="/logs" style={style}>기록</NavLink>
     </nav>
   )
 }
@@ -42,6 +45,7 @@ function App() {
           <Route path="/budget" element={<BudgetPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/regulation" element={<RegulationPage />} />
+          <Route path="/logs" element={<LogsPage />} />
         </Routes>
       </div>
     </BrowserRouter>
