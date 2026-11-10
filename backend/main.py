@@ -3,13 +3,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+import uuid
+
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from ai_check import REGULATION_PATH, AICheckError, check_expense
 
 DB_PATH = Path(__file__).parent / "expenses.db"
+UPLOAD_DIR = Path(__file__).parent / "uploads"  # 첨부파일 저장 폴더 (GitHub에 올리지 않음)
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".webp", ".pdf"}
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
 DEFAULT_ORG_ID = "default"  # 지금은 조직이 하나뿐이라 기본값 사용
 
 app = FastAPI()
@@ -47,6 +53,22 @@ def init_db():
                 ai_reason TEXT,
                 final_status TEXT NOT NULL DEFAULT '대기',
                 explanation TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        # 기존 DB에는 memo 칸이 없으므로, 없으면 추가한다
+        columns = [c["name"] for c in conn.execute("PRAGMA table_info(expenses)")]
+        if "memo" not in columns:
+            conn.execute("ALTER TABLE expenses ADD COLUMN memo TEXT")
+        # 지출에 붙인 증빙 파일 (영수증 사진 등). 실제 파일은 uploads 폴더에 저장한다
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS attachments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                expense_id INTEGER NOT NULL,
+                file_name TEXT NOT NULL,
+                stored_name TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
             """
@@ -187,6 +209,11 @@ def to_dict(row, conn):
         (d["id"],),
     ).fetchall()
     d["logs"] = [dict(log) for log in logs]
+    attachments = conn.execute(
+        "SELECT id, file_name, created_at FROM attachments WHERE expense_id = ? ORDER BY id",
+        (d["id"],),
+    ).fetchall()
+    d["attachments"] = [dict(a) for a in attachments]
     return d
 
 
@@ -233,3 +260,63 @@ def delete_schedule(schedule_id: int):
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="해당 일정을 찾을 수 없습니다.")
     return {"deleted": schedule_id}
+
+
+class MemoIn(BaseModel):
+    memo: str
+
+
+@app.patch("/expenses/{expense_id}/memo")
+def update_memo(expense_id: int, body: MemoIn):
+    # 메모는 총무 참고용이라 AI 점검에는 쓰지 않는다
+    with get_conn() as conn:
+        cur = conn.execute("UPDATE expenses SET memo = ? WHERE id = ?", (body.memo.strip(), expense_id))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+        row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
+        return to_dict(row, conn)
+
+
+@app.post("/expenses/{expense_id}/attachments")
+async def upload_attachment(expense_id: int, file: UploadFile = File(...)):
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="사진(jpg, png, heic, webp) 또는 PDF 파일만 올릴 수 있습니다.")
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="파일은 10MB 이하만 올릴 수 있습니다.")
+
+    with get_conn() as conn:
+        if conn.execute("SELECT id FROM expenses WHERE id = ?", (expense_id,)).fetchone() is None:
+            raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+        # 같은 이름의 파일이 덮어써지지 않도록 저장할 때는 무작위 이름을 쓴다
+        stored_name = uuid.uuid4().hex + ext
+        UPLOAD_DIR.mkdir(exist_ok=True)
+        (UPLOAD_DIR / stored_name).write_bytes(content)
+        conn.execute(
+            "INSERT INTO attachments (expense_id, file_name, stored_name, created_at) VALUES (?, ?, ?, ?)",
+            (expense_id, file.filename, stored_name, datetime.now().isoformat(timespec="seconds")),
+        )
+        row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
+        return to_dict(row, conn)
+
+
+@app.get("/attachments/{attachment_id}")
+def get_attachment(attachment_id: int):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM attachments WHERE id = ?", (attachment_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="해당 파일을 찾을 수 없습니다.")
+    # 원래 파일 이름으로 브라우저에 보여준다
+    return FileResponse(UPLOAD_DIR / row["stored_name"], filename=row["file_name"], content_disposition_type="inline")
+
+
+@app.delete("/attachments/{attachment_id}")
+def delete_attachment(attachment_id: int):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM attachments WHERE id = ?", (attachment_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="해당 파일을 찾을 수 없습니다.")
+        conn.execute("DELETE FROM attachments WHERE id = ?", (attachment_id,))
+    (UPLOAD_DIR / row["stored_name"]).unlink(missing_ok=True)
+    return {"deleted": attachment_id}

@@ -11,3 +11,6 @@ __pycache__/
 # 프론트엔드
 node_modules/
 dist/
+
+# 업로드된 증빙 파일
+backend/uploads/

@@ -13,8 +13,10 @@ export const KIND_COLORS = { 사업: 'steelblue', 감사: 'purple', 기타: 'gra
 export async function api(path, options = {}) {
   let res
   try {
+    // 파일 업로드(FormData)일 때는 브라우저가 형식을 직접 정하도록 Content-Type을 넣지 않는다
+    const isFile = options.body instanceof FormData
     res = await fetch(API_URL + path, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: isFile ? {} : { 'Content-Type': 'application/json' },
       ...options,
     })
   } catch {
