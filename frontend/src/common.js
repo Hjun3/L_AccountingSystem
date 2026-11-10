@@ -4,7 +4,7 @@ import { createContext, useContext } from 'react'
 export const API_URL = 'http://localhost:8000'
 
 // AI 점검 결과별 글자색 (한눈에 구분되도록)
-export const STATUS_COLORS = { 적합: 'green', 주의: 'darkorange', 위반: 'red' }
+export const STATUS_COLORS = { 적합: '#1e8e3e', 주의: '#b26a00', 위반: '#d22d2d' }
 
 // 지금 로그인한 사용자 정보를 모든 페이지에서 꺼내 쓰기 위한 통로 (App.jsx에서 값을 넣음)
 export const UserContext = createContext(null)

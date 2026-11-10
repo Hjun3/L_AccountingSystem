@@ -19,22 +19,24 @@ function sumBy(expenses, key) {
 
 function SummaryTable({ title, rows }) {
   return (
-    <div>
-      <h3 style={{ marginTop: 0 }}>{title}</h3>
-      <table>
-        <thead>
-          <tr><th>구분</th><th>건수</th><th>합계</th></tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.name}>
-              <td>{r.name}</td>
-              <td>{r.count}건</td>
-              <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{r.total.toLocaleString()}원</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div style={{ flex: 1, minWidth: 260 }}>
+      <h3>{title}</h3>
+      <div className="table-box">
+        <table>
+          <thead>
+            <tr><th>구분</th><th className="num">건수</th><th className="num">합계</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.name}>
+                <td>{r.name}</td>
+                <td className="num">{r.count}건</td>
+                <td className="num">{r.total.toLocaleString()}원</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -59,7 +61,7 @@ function DashboardPage() {
 
   useEffect(load, [termId]) // 임기를 바꾸면 다시 불러온다
 
-  if (error) return <p style={{ color: 'red' }}>{error}</p>
+  if (error) return <p style={{ color: 'var(--bad)' }}>{error}</p>
   if (!expenses) return <p>불러오는 중...</p>
 
   const total = expenses.reduce((sum, exp) => sum + exp.amount, 0)
@@ -74,115 +76,127 @@ function DashboardPage() {
   const todayString = new Date().toLocaleDateString('sv') // 'sv' 형식이 YYYY-MM-DD
   const upcoming = schedules.filter((s) => s.date >= todayString).slice(0, 5)
 
-  // 맨 위 숫자 카드 4개
-  const stats = [
-    { label: '총 지출', value: `${total.toLocaleString()}원`, sub: `${expenses.length}건` },
-    { label: '통장 잔액', value: bank.balance === null ? '-' : `${bank.balance.toLocaleString()}원`, sub: bank.as_of ? `${bank.as_of.slice(0, 10)} 기준` : '거래내역을 불러오세요' },
-    { label: '챙길 것', value: `${todoCount}개`, sub: `${withTodos.length}건의 지출`, alert: todoCount > 0 },
-    { label: '결정 대기', value: `${waiting.length}건`, sub: `확인·조치 필요 ${needCheck.length}건`, alert: needCheck.length > 0 },
-  ]
-
   return (
-    <div>
-      <h2>대시보드</h2>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
-        {stats.map((st) => (
-          <div key={st.label} className="card" style={{ marginBottom: 0 }}>
-            <div className="muted">{st.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: st.alert ? 'var(--danger)' : 'inherit' }}>{st.value}</div>
-            <div className="muted">{st.sub}</div>
+    <div className="narrow" style={{ maxWidth: 900 }}>
+      {/* 맨 위: 통장 잔액을 크게, 나머지는 한 줄 요약 */}
+      <section style={{ marginBottom: 32 }}>
+        <div className="muted">통장 잔액{bank.as_of && ` · ${bank.as_of.slice(0, 10)} 거래 기준`}</div>
+        {bank.balance === null ? (
+          <p style={{ fontSize: 15 }}>
+            거래내역을 불러오면 잔액이 보입니다. <Link to="/expenses/import">거래내역 불러오기</Link>
+          </p>
+        ) : (
+          <div className="tnum" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em' }}>
+            {bank.balance.toLocaleString()}<span style={{ fontSize: 20, fontWeight: 600 }}>원</span>
           </div>
-        ))}
-      </div>
+        )}
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 10, fontSize: 14, color: 'var(--sub)' }}>
+          <span>
+            지출 <b style={{ color: 'var(--text)' }}>{total.toLocaleString()}원</b> ({expenses.length}건)
+          </span>
+          <span>
+            챙길 것 <b style={{ color: todoCount ? 'var(--bad)' : 'var(--text)' }}>{todoCount}개</b>
+          </span>
+          <Link to="/expenses" style={{ color: 'inherit' }}>
+            결정 대기 <b style={{ color: 'var(--text)' }}>{waiting.length}건</b>
+            {needCheck.length > 0 && <span style={{ color: 'var(--bad)' }}> (확인·조치 필요 {needCheck.length})</span>}
+          </Link>
+        </div>
+      </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>챙길 것 ({todoCount}개)</h3>
+      {/* 오늘 할 일: 챙길 것 */}
+      <section>
+        <div className="section-title">
+          <h3>챙길 것</h3>
+          <span className="muted">AI가 알려 준 할 일. 끝내면 체크하세요.</span>
+        </div>
+        <div className="card" style={{ padding: '6px 20px' }}>
           {withTodos.length === 0 ? (
-            <p className="muted">남은 할 일이 없습니다.</p>
+            <p className="muted" style={{ padding: '10px 0' }}>남은 할 일이 없습니다.</p>
           ) : (
-            withTodos.map((exp) => (
-              <div key={exp.id} style={{ marginBottom: 10 }}>
-                <StatusBadge status={exp.ai_status} />{' '}
-                <Link to={`/expenses/${exp.id}`}>
-                  {exp.date} {exp.event_name} - {exp.description}
-                </Link>
-                <div style={{ paddingLeft: 12 }}>
+            withTodos.map((exp, i) => (
+              <div key={exp.id} style={{ padding: '12px 0', borderTop: i ? '1px solid var(--line)' : 'none' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <Link to={`/expenses/${exp.id}`} style={{ color: 'var(--text)', fontWeight: 500 }}>
+                    {exp.event_name} · {exp.description}
+                  </Link>
+                  <span className="tnum muted" style={{ whiteSpace: 'nowrap' }}>{exp.date} · {exp.amount.toLocaleString()}원</span>
+                </div>
+                <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
                   <TodoList expense={exp} onChanged={load} showDone={false} />
                 </div>
               </div>
             ))
           )}
         </div>
+      </section>
 
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>결정 대기 중 확인·조치 필요 ({needCheck.length}건)</h3>
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+        {/* 확인·조치 필요 */}
+        <section style={{ flex: 1, minWidth: 280 }}>
+          <div className="section-title"><h3>확인·조치가 필요한 지출</h3></div>
           {needCheck.length === 0 ? (
-            <p className="muted">확인이 필요한 지출이 없습니다.</p>
+            <p className="muted">없습니다.</p>
           ) : (
-            <ul style={{ paddingLeft: 18, margin: 0 }}>
-              {needCheck.map((exp) => (
-                <li key={exp.id} style={{ marginBottom: 4 }}>
-                  <StatusBadge status={exp.ai_status} />{' '}
-                  <Link to={`/expenses/${exp.id}`}>
-                    {exp.date} {exp.event_name} - {exp.description}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            needCheck.map((exp) => (
+              <div key={exp.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                <StatusBadge status={exp.ai_status} />
+                <div>
+                  <Link to={`/expenses/${exp.id}`}>{exp.event_name} · {exp.description}</Link>
+                </div>
+              </div>
+            ))
           )}
-          <h3>AI 점검 결과</h3>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {['적합', '주의', '위반'].map((st) => (
-              <span key={st}>
-                <StatusBadge status={st} /> {countOf(st)}건
-              </span>
-            ))}
+          <p className="muted" style={{ marginTop: 10 }}>
+            AI 점검 전체: 문제 없음 {countOf('적합')} · 확인 필요 {countOf('주의')} · 조치 필요 {countOf('위반')}
+          </p>
+        </section>
+
+        {/* 다가오는 일정 */}
+        <section style={{ flex: 1, minWidth: 260 }}>
+          <div className="section-title">
+            <h3>다가오는 일정</h3>
+            <Link to="/calendar" className="muted">캘린더</Link>
           </div>
-        </div>
-
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>다가오는 일정</h3>
           {upcoming.length === 0 ? (
-            <p className="muted">예정된 일정이 없습니다. <Link to="/calendar">캘린더에서 추가</Link></p>
+            <p className="muted">예정된 일정이 없습니다.</p>
           ) : (
-            <ul style={{ paddingLeft: 18, margin: 0 }}>
-              {upcoming.map((sc) => (
-                <li key={sc.id}>
-                  {sc.date} <span style={{ color: KIND_COLORS[sc.kind] }}>[{sc.kind}]</span> {sc.title}
-                </li>
-              ))}
-            </ul>
+            upcoming.map((sc) => (
+              <div key={sc.id} style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                <span className="tnum muted" style={{ minWidth: 44, paddingTop: 2 }}>{sc.date.slice(5).replace('-', '.')}</span>
+                <span>
+                  <span style={{ color: KIND_COLORS[sc.kind], fontSize: 12, fontWeight: 600 }}>{sc.kind}</span> {sc.title}
+                </span>
+              </div>
+            ))
           )}
-        </div>
+        </section>
+      </div>
 
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>월별 입출금 (통장)</h3>
-          {bank.balance === null ? (
-            <p className="muted">
-              거래내역을 불러오면 보입니다. <Link to="/expenses/import">거래내역 불러오기</Link>
-            </p>
-          ) : (
-            <table style={{ width: '100%' }}>
+      {/* 월별 입출금 */}
+      {bank.balance !== null && (
+        <section>
+          <h3>월별 입출금 (통장)</h3>
+          <div className="table-box">
+            <table>
               <thead>
-                <tr><th>월</th><th style={{ textAlign: 'right' }}>입금</th><th style={{ textAlign: 'right' }}>출금</th></tr>
+                <tr><th>월</th><th className="num">입금</th><th className="num">출금</th></tr>
               </thead>
               <tbody>
                 {bank.months.map((m) => (
                   <tr key={m.month}>
                     <td>{m.month}</td>
-                    <td style={{ textAlign: 'right', color: 'steelblue' }}>{m.deposit.toLocaleString()}원</td>
-                    <td style={{ textAlign: 'right', color: 'crimson' }}>{m.withdraw.toLocaleString()}원</td>
+                    <td className="num">{m.deposit.toLocaleString()}원</td>
+                    <td className="num">−{m.withdraw.toLocaleString()}원</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
-      </div>
+          </div>
+        </section>
+      )}
 
-      <div className="card" style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
         <SummaryTable title="사업별 지출" rows={sumBy(expenses, 'event_name')} />
         <SummaryTable title="비목별 지출" rows={sumBy(expenses, 'category')} />
       </div>

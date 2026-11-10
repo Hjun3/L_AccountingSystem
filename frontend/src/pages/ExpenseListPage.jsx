@@ -35,63 +35,74 @@ function ExpenseListPage() {
 
   const shown = expenses.filter((exp) => matchesFilter(exp, filter))
 
+  const sum = shown.reduce((n, exp) => n + exp.amount, 0)
+
   return (
     <div>
-      <h2>지출 목록</h2>
-      <p className="muted">
-        ※ AI 점검은 참고용이며, 최종 판단은 총무가 합니다. 현재 점검 기준은 시연용 임시 규정입니다.
-        <br />※ '챙길 것'은 AI가 알려 준 할 일 중 아직 체크하지 않은 개수입니다. 상세 화면에서 체크할 수 있습니다.
-      </p>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+        <h2 style={{ marginBottom: 6 }}>지출 목록</h2>
+        <span className="muted">AI 점검은 참고용이며 최종 판단은 총무가 합니다. 점검 기준: 시연용 임시 규정</span>
+      </div>
+      {error && <p style={{ color: 'var(--bad)' }}>{error}</p>}
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 4, margin: '12px 0', flexWrap: 'wrap', alignItems: 'center' }}>
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)} className={f === filter ? 'active' : ''}>
-            {STATUS_LABELS[f] || f} ({expenses.filter((exp) => matchesFilter(exp, f)).length})
+            {STATUS_LABELS[f] || f} {expenses.filter((exp) => matchesFilter(exp, f)).length}
           </button>
         ))}
+        <span className="muted" style={{ marginLeft: 'auto' }}>
+          {shown.length}건 · <span className="num">{sum.toLocaleString()}원</span>
+        </span>
       </div>
 
-      <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%' }}>
-        <thead>
-          <tr>
-            <th>날짜</th>
-            <th>사업명</th>
-            <th>항목</th>
-            <th>내용</th>
-            <th>금액</th>
-            <th>증빙</th>
-            <th>AI 점검</th>
-            <th>근거 조항</th>
-            <th>판단 이유</th>
-            <th>챙길 것</th>
-            <th>총무 결정</th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map((exp) => (
-            <tr key={exp.id}>
-              <td style={{ whiteSpace: 'nowrap' }}>{exp.date}</td>
-              <td style={{ minWidth: 90 }}>{exp.event_name}</td>
-              <td style={{ whiteSpace: 'nowrap' }}>{exp.category}</td>
-              <td style={{ minWidth: 220 }}>
-                <Link to={`/expenses/${exp.id}`}>{exp.description}</Link>
-              </td>
-              <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>{exp.amount.toLocaleString()}원</td>
-              <td style={{ whiteSpace: 'nowrap' }}>{exp.has_receipt ? '있음' : '없음'}</td>
-              <td><StatusBadge status={exp.ai_status} /></td>
-              <td style={{ fontSize: 13 }}>{exp.ai_clause}</td>
-              <td style={{ fontSize: 13 }}>{exp.ai_reason}</td>
-              <td style={{ textAlign: 'center' }}>
-                {exp.ai_todos.filter((t) => !t.done).length || '-'}
-              </td>
-              <td>
-                <DecisionCell key={exp.id + exp.final_status} expense={exp} onSaved={loadExpenses} compact />
-              </td>
+      <div className="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th>날짜</th>
+              <th>사업 · 비목</th>
+              <th>내용</th>
+              <th className="num">금액</th>
+              <th>증빙</th>
+              <th>AI 점검 · 근거</th>
+              <th className="num">챙길 것</th>
+              <th>총무 결정</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {shown.map((exp) => {
+              const todosLeft = exp.ai_todos.filter((t) => !t.done).length
+              return (
+                <tr key={exp.id}>
+                  <td className="tnum" style={{ whiteSpace: 'nowrap' }}>{exp.date.slice(2).replaceAll('-', '.')}</td>
+                  <td style={{ minWidth: 110 }}>
+                    <div>{exp.event_name}</div>
+                    <div className="muted">{exp.category}</div>
+                  </td>
+                  <td style={{ minWidth: 200 }}>
+                    <Link to={`/expenses/${exp.id}`} style={{ color: 'var(--text)' }}>{exp.description}</Link>
+                  </td>
+                  <td className="num" style={{ fontWeight: 600 }}>{exp.amount.toLocaleString()}</td>
+                  <td style={{ color: exp.has_receipt ? 'var(--sub)' : 'var(--bad)', whiteSpace: 'nowrap' }}>
+                    {exp.has_receipt ? '있음' : '없음'}
+                  </td>
+                  <td style={{ minWidth: 200 }}>
+                    <StatusBadge status={exp.ai_status} />
+                    <div className="muted" style={{ marginTop: 2 }}>{exp.ai_clause}</div>
+                    <div style={{ fontSize: 12, color: 'var(--sub)' }}>{exp.ai_reason}</div>
+                  </td>
+                  <td className="num" style={{ color: todosLeft ? 'var(--bad)' : 'var(--muted)' }}>{todosLeft || '-'}</td>
+                  <td>
+                    <DecisionCell key={exp.id + exp.final_status} expense={exp} onSaved={loadExpenses} compact />
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        {shown.length === 0 && <p className="muted" style={{ padding: 16 }}>해당하는 지출이 없습니다.</p>}
+      </div>
     </div>
   )
 }

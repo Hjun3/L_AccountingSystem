@@ -1,97 +1,130 @@
-/* 사이트 전체 공통 디자인. 색은 아래 변수(--이름)로 모아 두고 여기서만 바꾼다. */
+/*
+  사이트 전체 공통 디자인 규칙 (C안: 요약 화면은 여유 있게, 장부 화면은 촘촘하게)
+  - 강조색은 파랑 하나. 누르는 버튼, 현재 메뉴, 링크에만 쓴다.
+  - 둥글기는 두 가지만: 입력칸·버튼 6px(--r-sm), 큰 구역 10px(--r-lg)
+  - 금액은 숫자 폭을 맞추고(tabular-nums) 오른쪽 정렬
+  - 상태는 색 점 + 글자로 표시 (색만으로 구분하지 않음)
+  - 그라데이션·그림자·장식 없음. 구분은 여백과 얇은 선으로
+*/
 :root {
-  --bg: #f5f6f8;          /* 바탕 */
-  --surface: #ffffff;     /* 카드·표 바탕 */
-  --text: #1f2328;
-  --muted: #6b7280;       /* 보조 글자 */
-  --border: #e3e5e8;
-  --primary: #2f5bd3;     /* 버튼·링크 */
-  --primary-soft: #eaf0ff;
-  --danger: #c62828;
-  --radius: 8px;
-  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --bg: #f6f7f9;          /* 바탕 */
+  --surface: #ffffff;     /* 구역 바탕 */
+  --text: #191f28;        /* 본문 */
+  --sub: #4e5968;         /* 보조 글자 */
+  --muted: #8b95a1;       /* 더 흐린 글자 (설명, 날짜) */
+  --line: #e5e8eb;        /* 선 */
+  --line-strong: #d1d6db;
+  --primary: #1f5fd6;     /* 유일한 강조색 */
+  --primary-soft: #edf3fd;
+  --ok: #1e8e3e;          /* 문제 없음 */
+  --warn: #b26a00;        /* 확인 필요 */
+  --bad: #d22d2d;         /* 조치 필요, 초과, 오류 */
+  --r-sm: 6px;
+  --r-lg: 10px;
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   color: var(--text);
   background: var(--bg);
-  line-height: 1.5;
+  line-height: 1.55;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
 }
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); }
-h1, h2, h3 { line-height: 1.3; }
-h2 { font-size: 22px; margin: 0 0 12px; }
-h3 { font-size: 16px; margin: 20px 0 8px; }
+h1, h2, h3 { line-height: 1.3; letter-spacing: -0.01em; }
+h2 { font-size: 20px; font-weight: 700; margin: 0 0 16px; }
+h3 { font-size: 15px; font-weight: 600; margin: 24px 0 10px; }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
+p { margin: 8px 0; }
 
 /* ---------- 버튼·입력칸 ---------- */
 button {
-  font: inherit; font-size: 14px;
-  padding: 5px 12px;
-  border: 1px solid var(--border); border-radius: 6px;
+  font: inherit; font-size: 13px; font-weight: 500;
+  height: 32px; padding: 0 12px;
+  border: 1px solid var(--line-strong); border-radius: var(--r-sm);
   background: var(--surface); color: var(--text);
   cursor: pointer; white-space: nowrap;
 }
-button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
-button:disabled { opacity: 0.5; cursor: default; }
-button[type='submit'] { background: var(--primary); color: white; border-color: var(--primary); }
-button[type='submit']:hover:not(:disabled) { color: white; filter: brightness(1.1); }
+button:hover:not(:disabled) { background: #f2f4f6; }
+button:disabled { opacity: 0.45; cursor: default; }
+/* 주 버튼(제출)만 파랑으로 채운다 */
+button[type='submit'] { background: var(--primary); color: #fff; border-color: var(--primary); }
+button[type='submit']:hover:not(:disabled) { background: #1a52bb; }
 input, select, textarea {
-  font: inherit; font-size: 14px;
-  padding: 5px 8px;
-  border: 1px solid var(--border); border-radius: 6px;
+  font: inherit; font-size: 14px; color: var(--text);
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong); border-radius: var(--r-sm);
   background: var(--surface);
 }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary-soft); border-color: var(--primary); }
-input[type='checkbox'] { padding: 0; }
-label { font-size: 14px; }
-/* 세로로 쌓는 입력 폼(지출 등록, 일정 등록 등): 이름을 입력칸 위에 두어 줄을 맞춘다. 체크박스는 한 줄 그대로. */
-form[style*='grid'] label { display: flex; flex-direction: column; gap: 4px; }
-form[style*='grid'] label:has(> input[type='checkbox']) { flex-direction: row; align-items: center; gap: 6px; }
-form[style*='grid'] { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+input:not([type='checkbox']):not([type='file']), select { height: 34px; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+input[type='checkbox'] { width: 15px; height: 15px; accent-color: var(--primary); vertical-align: -2px; }
+input::placeholder, textarea::placeholder { color: var(--muted); }
+label { font-size: 13px; color: var(--sub); }
 
-/* ---------- 표 (border="1" 기본 표도 이 모양으로 바뀜) ---------- */
-table { border-collapse: collapse; background: var(--surface); border-radius: var(--radius); font-size: 14px; }
-table th, table td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; vertical-align: top; }
-table th { background: #f0f2f5; font-weight: 600; white-space: nowrap; }
-table tbody tr:hover { background: #fafbfc; }
+/* 세로로 쌓는 입력 폼: 이름을 입력칸 위에 둔다. 체크박스는 한 줄 그대로. */
+form[style*='grid'] label { display: flex; flex-direction: column; gap: 5px; }
+form[style*='grid'] label:has(> input[type='checkbox']) { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
 
-/* ---------- 화면 배치: 왼쪽 메뉴 + 오른쪽 본문 ---------- */
+/* ---------- 표: 장부처럼 촘촘하게. 세로선 없이 가로선만 ---------- */
+table { border-collapse: collapse; background: var(--surface); font-size: 13px; }
+table th, table td { border: none; border-bottom: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+table th { color: var(--muted); font-weight: 500; font-size: 12px; white-space: nowrap; background: var(--surface); border-bottom-color: var(--line-strong); }
+table tbody tr:hover td { background: #fafbfc; }
+table tbody tr:last-child td { border-bottom: none; }
+/* 숫자는 폭을 맞춰서 자릿수가 세로로 맞게 */
+td, .num, .tnum { font-variant-numeric: tabular-nums; }  /* .tnum: 정렬은 그대로 두고 숫자 폭만 맞춤 */
+.num { text-align: right !important; white-space: nowrap; }
+/* 표를 감싸는 틀 (테두리·둥글기는 틀에만) */
+.table-box { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow-x: auto; }
+.table-box table { width: 100%; }
+
+/* ---------- 화면 배치: 왼쪽 메뉴 + 본문 ---------- */
 .layout { display: flex; min-height: 100vh; }
 .sidebar {
-  width: 210px; flex-shrink: 0;
-  background: var(--surface); border-right: 1px solid var(--border);
-  padding: 16px 12px;
+  width: 216px; flex-shrink: 0;
+  background: var(--surface); border-right: 1px solid var(--line);
+  padding: 20px 12px;
   position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  display: flex; flex-direction: column;
 }
-.sidebar .brand { font-weight: 700; font-size: 16px; margin: 0 4px 12px; }
-.sidebar select { width: 100%; margin-bottom: 12px; }
-.sidebar .group { font-size: 12px; color: var(--muted); margin: 14px 8px 4px; }
-.sidebar a { display: block; padding: 6px 10px; border-radius: 6px; color: var(--text); font-size: 14px; }
-.sidebar a:hover { background: var(--bg); text-decoration: none; }
-.sidebar a.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
-.sidebar .me { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 12px; font-size: 13px; color: var(--muted); }
-.sidebar .me b { color: var(--text); }
-.content { flex: 1; min-width: 0; padding: 24px 28px; max-width: 1200px; }
+.sidebar .brand { font-weight: 700; font-size: 15px; margin: 0 8px 14px; letter-spacing: -0.02em; }
+.sidebar select { width: 100%; margin-bottom: 8px; font-size: 13px; }
+.sidebar .group { font-size: 11px; font-weight: 600; color: var(--muted); margin: 18px 10px 4px; letter-spacing: 0.02em; }
+.sidebar nav a { display: block; padding: 7px 10px; border-radius: var(--r-sm); color: var(--sub); font-size: 14px; }
+.sidebar nav a:hover { background: #f2f4f6; text-decoration: none; color: var(--text); }
+.sidebar nav a.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.sidebar .me { margin-top: auto; border-top: 1px solid var(--line); padding: 14px 8px 0; font-size: 12px; color: var(--muted); }
+.sidebar .me b { color: var(--text); font-size: 13px; }
+.sidebar .me a { color: var(--sub); }
+.content { flex: 1; min-width: 0; padding: 32px 36px 48px; max-width: 1180px; }
+/* 요약·입력 화면은 폭을 좁혀서 여유 있게 */
+.narrow { max-width: 760px; }
 
-/* 좁은 화면(휴대폰): 메뉴를 위로 올린다 */
+/* 좁은 화면(휴대폰): 메뉴를 위로 */
 @media (max-width: 760px) {
   .layout { flex-direction: column; }
-  .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); }
+  .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--line); padding: 14px 12px; }
   .sidebar nav { display: flex; flex-wrap: wrap; gap: 2px; }
   .sidebar .group { display: none; }
-  .content { padding: 16px; }
-  table { display: block; overflow-x: auto; }
+  .sidebar .me { margin-top: 10px; }
+  .content { padding: 20px 16px 40px; }
 }
 
 /* ---------- 자주 쓰는 모양 ---------- */
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
-.notice { background: var(--primary-soft); border-radius: 6px; padding: 8px 12px; font-size: 13px; }
-.muted { color: var(--muted); font-size: 13px; }
-/* 탭·필터 버튼: 고른 것(active)을 색으로 강조 */
-button.active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); font-weight: 600; }
-
-/* AI 점검 결과 표시 (문제 없음 / 확인 필요 / 조치 필요) */
-.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px; margin-bottom: 16px; }
+.notice { background: var(--primary-soft); color: var(--sub); border-radius: var(--r-sm); padding: 10px 12px; font-size: 13px; }
+.muted { color: var(--muted); font-size: 12px; }
+.section-title { display: flex; align-items: baseline; justify-content: space-between; margin: 28px 0 10px; }
+.section-title h3 { margin: 0; }
+/* 상태 표시: 색 점 + 글자 */
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+/* 탭·필터 버튼: 고른 것만 강조 */
+button.active { background: var(--primary-soft); color: var(--primary); border-color: transparent; font-weight: 600; }
+/* 예전 화면에서 쓰던 배지 이름 (호환용) */
+.badge { font-size: 12px; font-weight: 600; }
 
 @media print {
   .no-print { display: none !important; }
