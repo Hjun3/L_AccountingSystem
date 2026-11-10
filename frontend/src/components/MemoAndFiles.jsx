@@ -54,7 +54,7 @@ function MemoAndFiles({ expense, onChanged }) {
   return (
     <div>
       <h3 style={{ marginTop: 0 }}>메모</h3>
-      <p style={{ fontSize: 12, color: 'gray', margin: 0 }}>총무 참고용 메모입니다. AI 점검에는 쓰이지 않습니다.</p>
+      <p style={{ fontSize: 12, color: 'gray', margin: 0 }}>총무 메모입니다. 확인·조치가 필요한 지출을 확정할 때 남긴 메모도 여기에 보입니다. AI 점검에는 쓰이지 않습니다.</p>
       <div style={{ display: 'flex', gap: 4, maxWidth: 600 }}>
         <input
           style={{ flex: 1 }}

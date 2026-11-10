@@ -251,6 +251,11 @@ def init_db():
             """
         )
 
+        # 예전 결정 '소명'(화면 이름 '사유')은 없앴다: 확정 + 메모로 옮긴다 (메모가 있으면 뒤에 붙임)
+        for r in conn.execute("SELECT id, memo, explanation FROM expenses WHERE final_status = '소명'").fetchall():
+            parts = [t for t in [(r["memo"] or "").strip(), (r["explanation"] or "").strip()] if t]
+            conn.execute("UPDATE expenses SET final_status = '확정', memo = ?, explanation = NULL WHERE id = ?",
+                         (" / ".join(parts), r["id"]))
         # 기록에 '누가 했는지'(사용자 이름) 칸을 추가한다
         for table in ("change_logs", "decision_logs"):
             if "actor" not in [c["name"] for c in conn.execute(f"PRAGMA table_info({table})")]:
@@ -281,8 +286,8 @@ async def read_limited(file: UploadFile, limit: int = MAX_UPLOAD_SIZE) -> bytes:
     return b"".join(chunks)
 
 
-# 총무 결정 화면 표시 이름 (저장값 '소명'은 화면에서 '사유'로)
-FINAL_LABELS = {"대기": "대기", "확정": "확정", "소명": "사유"}
+# 총무 결정 화면 표시 이름 (예전 기록의 '소명'은 지금 방식으로는 메모를 남긴 확정이므로 '확정'으로 보여준다)
+FINAL_LABELS = {"대기": "대기", "확정": "확정", "소명": "확정"}
 
 
 def actor_name():
@@ -344,31 +349,33 @@ def create_expense(expense: ExpenseIn):
 
 
 class DecisionIn(BaseModel):
-    """총무의 결정: 확정, 소명(소명 내용 필수), 대기(= 결정 취소)"""
-    final_status: Literal["확정", "소명", "대기"]
-    explanation: str = ""
+    """총무의 결정: 확정 또는 대기(= 결정 취소). memo를 주면 지출 메모도 함께 저장한다."""
+    final_status: Literal["확정", "대기"]
+    memo: str | None = None
 
 
 @app.patch("/expenses/{expense_id}")
 def decide_expense(expense_id: int, decision: DecisionIn):
-    explanation = decision.explanation.strip()
-    if decision.final_status == "소명" and not explanation:
-        raise HTTPException(status_code=400, detail="사유를 입력하세요.")
-    # 소명일 때만 소명 내용을 남기고, 확정이나 취소면 비운다
-    new_explanation = explanation if decision.final_status == "소명" else None
-
     with get_conn() as conn:
         old = get_active_expense(conn, expense_id)
+        memo = old["memo"] or ""
+        if decision.memo is not None:
+            memo = decision.memo.strip()
+        # AI가 '확인 필요'·'조치 필요'라고 한 지출은 메모(왜 넘어가는지)가 있어야 확정할 수 있다
+        if decision.final_status == "확정" and old["ai_status"] in ("주의", "위반") and not memo:
+            raise HTTPException(status_code=400, detail="확인·조치가 필요한 지출은 메모를 남겨야 확정할 수 있어요.")
         conn.execute(
-            "UPDATE expenses SET final_status = ?, explanation = ? WHERE id = ?",
-            (decision.final_status, new_explanation, expense_id),
+            "UPDATE expenses SET final_status = ?, memo = ? WHERE id = ?",
+            (decision.final_status, memo, expense_id),
         )
+        # 확정할 때의 메모를 기록에도 남긴다 (나중에 메모를 고쳐도 그때 무슨 이유였는지 보이게)
         conn.execute(
             """
             INSERT INTO decision_logs (expense_id, from_status, to_status, explanation, created_at, actor)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (expense_id, old["final_status"], decision.final_status, new_explanation,
+            (expense_id, old["final_status"], decision.final_status,
+             memo if decision.final_status == "확정" and memo else None,
              datetime.now().isoformat(timespec="seconds"), actor_name()),
         )
         row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()

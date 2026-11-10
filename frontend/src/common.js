@@ -21,8 +21,8 @@ export const termQuery = (termId) => (termId ? `?term_id=${termId}` : '')
 
 // AI 점검 결과를 화면에 보여줄 이름. 저장값(적합/주의/위반)은 그대로 두고 표시만 동료 말투로 바꾼다.
 export const STATUS_LABELS = { 적합: '문제 없음', 주의: '확인 필요', 위반: '조치 필요' }
-// 총무 결정을 화면에 보여줄 이름. 저장값(대기/확정/소명)은 그대로 두고, 어려운 '소명' 대신 '사유'로 보여준다.
-export const FINAL_LABELS = { 대기: '대기', 확정: '확정', 소명: '사유' }
+// 총무 결정을 화면에 보여줄 이름. 결정은 대기/확정 두 가지 (예전 기록의 '소명'은 메모를 남긴 확정과 같아 '확정'으로 보여준다)
+export const FINAL_LABELS = { 대기: '대기', 확정: '확정', 소명: '확정' }
 export const finalLabel = (status) => FINAL_LABELS[status] || status
 
 // 배지(동그란 표시) 바탕색

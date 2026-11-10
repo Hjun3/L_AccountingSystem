@@ -364,7 +364,7 @@ function LandingPage({ onLogin }) {
             <div className="lp-kicker">AI는 동료</div>
             <h2>AI는 알려 주고,<br />결정은 총무가 해요</h2>
             <p className="desc">
-              AI가 회계 규정을 근거로 챙길 것을 짚어 줍니다. 확정할지, 사유를 남길지는 총무가 정하고 모든 결정은 기록으로 남습니다.
+              AI가 회계 규정을 근거로 챙길 것을 짚어 줍니다. 넘어가도 될지는 총무가 정하고, 확정할 때 남긴 메모와 모든 결정은 기록으로 남습니다.
             </p>
           </div>
           <div ref={chatRef} className={`lp-chat ${chatIn ? 'in' : ''}`}>
@@ -374,11 +374,11 @@ function LandingPage({ onLogin }) {
               <div className="todo">☐ 수령인 학생증 사본 받기</div>
             </div>
             <div className="lp-msg me" style={delay(1, 0.6)}>
-              환급 대상자가 휴학 중이라 다음 주에 받기로 했어요. 사유로 남길게요.
+              환급 대상자가 휴학 중이라 다음 주에 받기로 했어요. 메모로 남기고 확정할게요.
             </div>
             <div className="lp-decide" style={delay(2, 0.6)}>
-              <span>확정</span>
-              <span className="on">사유</span>
+              <span>메모: 학생증 사본 다음 주 수령</span>
+              <span className="on">확정</span>
             </div>
           </div>
         </div>

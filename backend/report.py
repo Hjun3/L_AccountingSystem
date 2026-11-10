@@ -98,7 +98,7 @@ def build_settlement(budgets, expenses, period_text):
     _header(ws3, 1, ["날짜", "단위사업", "비목", "지출 내용", "금액", "증빙", "총무 결정", "메모"], [12, 18, 10, 50, 12, 6, 10, 30])
     for e in sorted(expenses, key=lambda x: (x["date"], x["id"])):
         ws3.append([e["date"], e["event_name"], e["category"], e["description"], e["amount"],
-                    "있음" if e["has_receipt"] else "없음", {"소명": "사유"}.get(e["final_status"], e["final_status"]), e.get("memo") or ""])
+                    "있음" if e["has_receipt"] else "없음", {"소명": "확정"}.get(e["final_status"], e["final_status"]), e.get("memo") or ""])
     for r in ws3.iter_rows(min_row=2, min_col=5, max_col=5):
         for cell in r:
             cell.number_format = MONEY
