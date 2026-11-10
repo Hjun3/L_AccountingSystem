@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { api, STATUS_COLORS } from '../common'
+import { api, STATUS_COLORS, STATUS_LABELS } from '../common'
 import DecisionCell from '../components/DecisionCell'
 import MemoAndFiles from '../components/MemoAndFiles'
+import TodoList from '../components/TodoList'
 
 // 지출 상세 페이지: 지출 1건의 정보, AI 점검 내용, 총무 결정과 이력을 크게 보여준다
 function ExpenseDetailPage() {
@@ -46,13 +47,19 @@ function ExpenseDetailPage() {
       </table>
 
       <h3>AI 점검 (참고용)</h3>
-      <p style={{ fontSize: 20, fontWeight: 'bold', color: STATUS_COLORS[expense.ai_status] }}>{expense.ai_status}</p>
+      <p style={{ fontSize: 20, fontWeight: 'bold', color: STATUS_COLORS[expense.ai_status] }}>{STATUS_LABELS[expense.ai_status]}</p>
       <p>
         <b>근거 조항:</b> {expense.ai_clause} (<Link to="/regulation">규정 보기</Link>)
       </p>
       <p>
         <b>판단 이유:</b> {expense.ai_reason}
       </p>
+      {expense.ai_todos.length > 0 && (
+        <>
+          <b>챙길 것</b>
+          <TodoList expense={expense} onChanged={loadExpense} />
+        </>
+      )}
 
       <h3>총무 결정</h3>
       {/* key를 주어 다른 지출로 이동하면 결정 칸의 입력 상태를 새로 시작한다 */}

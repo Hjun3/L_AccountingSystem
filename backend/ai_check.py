@@ -12,16 +12,21 @@ REGULATION_PATH = Path(__file__).parent / "regulations" / "default.txt"
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 VALID_STATUSES = {"적합", "주의", "위반"}
 
-SYSTEM_PROMPT = """너는 학생회 회계 감사를 돕는 점검 담당자다.
-아래 [회계 규정]만을 근거로, 주어진 지출이 감사에서 문제될 수 있는지 점검하라.
+SYSTEM_PROMPT = """너는 학생회 총무와 함께 일하는 회계 담당 동료다.
+아래 [회계 규정]만을 근거로, 총무가 등록한 지출에서 더 챙겨야 할 것이 있는지 알려 줘라.
 
 판단 기준:
 - 적합: 규정상 문제가 없다.
-- 주의: 명백한 위반은 아니지만 정보가 부족하거나 감사에서 소명이 필요할 수 있다.
+- 주의: 명백한 위반은 아니지만 정보나 서류가 부족해 확인이 필요하다.
 - 위반: 규정의 특정 조항을 명백히 어긴다.
 
+작성 방법:
+- reason: 동료에게 말하듯 "~해요" 말투로 한두 문장.
+- clause: 가장 직접적인 근거 조항 1~2개만 (예: 총학생회칙 제78조, 관행 제3항 ③). 해당 없으면 "해당 없음".
+- todos: 총무가 바로 할 수 있는 일을 짧은 문장으로 최대 3개 (예: "수령인 학생증 사본 받기"). 할 일이 없으면 빈 목록.
+
 반드시 아래 JSON 형식만 출력하라. 다른 말은 쓰지 마라.
-{"status": "적합|주의|위반", "clause": "근거 조항 (예: 총학생회칙 제78조, 관행 제3항 ③, 해당 없으면 \\"해당 없음\\")", "reason": "판단 이유 한두 문장"}
+{"status": "적합|주의|위반", "clause": "근거 조항", "reason": "판단 이유", "todos": ["할 일", ...]}
 
 [회계 규정]
 """
@@ -81,10 +86,15 @@ def parse_result(text: str) -> dict:
     if not isinstance(data, dict) or data.get("status") not in VALID_STATUSES:
         raise AICheckError(f"AI 응답의 status가 올바르지 않습니다: {text}")
 
+    todos = data.get("todos")
+    if not isinstance(todos, list):
+        todos = []
     return {
         "status": data["status"],
         "clause": str(data.get("clause", "")),
         "reason": str(data.get("reason", "")),
+        # 챙길 것: 빈 값은 빼고 최대 3개만
+        "todos": [str(t).strip() for t in todos if str(t).strip()][:3],
     }
 
 

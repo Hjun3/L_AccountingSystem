@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { api, KIND_COLORS, STATUS_COLORS } from '../common'
+import { api, KIND_COLORS, STATUS_COLORS, STATUS_LABELS } from '../common'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -143,9 +143,9 @@ function CalendarPage() {
         ))}
       </div>
       <p style={{ fontSize: 12, color: 'gray' }}>
-        ● 지출 (색: <span style={{ color: STATUS_COLORS['적합'] }}>적합</span> /{' '}
-        <span style={{ color: STATUS_COLORS['주의'] }}>주의</span> /{' '}
-        <span style={{ color: STATUS_COLORS['위반'] }}>위반</span>) · [사업] [감사] [기타] 일정
+        ● 지출 (색: <span style={{ color: STATUS_COLORS['적합'] }}>{STATUS_LABELS['적합']}</span> /{' '}
+        <span style={{ color: STATUS_COLORS['주의'] }}>{STATUS_LABELS['주의']}</span> /{' '}
+        <span style={{ color: STATUS_COLORS['위반'] }}>{STATUS_LABELS['위반']}</span>) · [사업] [감사] [기타] 일정
       </p>
 
       <h3>일정 등록</h3>

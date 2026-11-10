@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, STATUS_COLORS } from '../common'
+import { api, STATUS_COLORS, STATUS_LABELS } from '../common'
 import DecisionCell from '../components/DecisionCell'
 
 // 필터 버튼 목록: AI 점검 결과와 총무 결정 상태로 걸러 본다
@@ -38,13 +38,14 @@ function ExpenseListPage() {
       <h2>지출 목록</h2>
       <p style={{ color: 'gray' }}>
         ※ AI 점검은 참고용이며, 최종 판단은 총무가 합니다. 현재 점검 기준은 시연용 임시 규정입니다.
+        <br />※ '챙길 것'은 AI가 알려 준 할 일 중 아직 체크하지 않은 개수입니다. 상세 화면에서 체크할 수 있습니다.
       </p>
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)} style={{ fontWeight: f === filter ? 'bold' : 'normal' }}>
-            {f} ({expenses.filter((exp) => matchesFilter(exp, f)).length})
+            {STATUS_LABELS[f] || f} ({expenses.filter((exp) => matchesFilter(exp, f)).length})
           </button>
         ))}
       </div>
@@ -61,6 +62,7 @@ function ExpenseListPage() {
             <th>AI 점검</th>
             <th>근거 조항</th>
             <th>판단 이유</th>
+            <th>챙길 것</th>
             <th>총무 결정</th>
           </tr>
         </thead>
@@ -75,9 +77,12 @@ function ExpenseListPage() {
               </td>
               <td>{exp.amount.toLocaleString()}원</td>
               <td>{exp.has_receipt ? '있음' : '없음'}</td>
-              <td style={{ color: STATUS_COLORS[exp.ai_status], fontWeight: 'bold' }}>{exp.ai_status}</td>
+              <td style={{ color: STATUS_COLORS[exp.ai_status], fontWeight: 'bold' }}>{STATUS_LABELS[exp.ai_status]}</td>
               <td>{exp.ai_clause}</td>
               <td>{exp.ai_reason}</td>
+              <td style={{ textAlign: 'center' }}>
+                {exp.ai_todos.filter((t) => !t.done).length || '-'}
+              </td>
               <td>
                 <DecisionCell expense={exp} onSaved={loadExpenses} />
               </td>

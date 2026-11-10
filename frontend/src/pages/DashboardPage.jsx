@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, KIND_COLORS, STATUS_COLORS } from '../common'
+import { api, KIND_COLORS, STATUS_COLORS, STATUS_LABELS } from '../common'
+import TodoList from '../components/TodoList'
 
 // 지출 목록을 기준(사업명, 비목 등)별로 묶어 금액 합계와 건수를 구한다
 // 예: sumBy(expenses, 'category') -> [{ name: '급량비', total: 530000, count: 2 }, ...]
@@ -43,14 +44,16 @@ function DashboardPage() {
   const [schedules, setSchedules] = useState([])
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  function load() {
     Promise.all([api('/expenses'), api('/schedules')])
       .then(([exps, schs]) => {
         setExpenses(exps)
         setSchedules(schs)
       })
       .catch((e) => setError(e.message))
-  }, [])
+  }
+
+  useEffect(load, [])
 
   if (error) return <p style={{ color: 'red' }}>{error}</p>
   if (!expenses) return <p>불러오는 중...</p>
@@ -60,6 +63,9 @@ function DashboardPage() {
   const waiting = expenses.filter((exp) => exp.final_status === '대기')
   // 주의/위반인데 아직 총무가 결정하지 않은 건: 감사 전에 먼저 봐야 할 것
   const needCheck = waiting.filter((exp) => exp.ai_status === '주의' || exp.ai_status === '위반')
+  // 아직 끝내지 않은 '챙길 것'이 있는 지출
+  const withTodos = expenses.filter((exp) => exp.ai_todos.some((t) => !t.done))
+  const todoCount = withTodos.reduce((n, exp) => n + exp.ai_todos.filter((t) => !t.done).length, 0)
   // 오늘 이후 일정 중 가까운 5개 (날짜 문자열은 'YYYY-MM-DD'라 글자 비교로 날짜 비교가 됨)
   const todayString = new Date().toLocaleDateString('sv') // 'sv' 형식이 YYYY-MM-DD
   const upcoming = schedules.filter((s) => s.date >= todayString).slice(0, 5)
@@ -85,24 +91,40 @@ function DashboardPage() {
         </ul>
       )}
 
+      <h3>챙길 것 ({todoCount}개)</h3>
+      {withTodos.length === 0 ? (
+        <p style={{ color: 'gray' }}>남은 할 일이 없습니다.</p>
+      ) : (
+        withTodos.map((exp) => (
+          <div key={exp.id} style={{ marginBottom: 6 }}>
+            <Link to={`/expenses/${exp.id}`}>
+              {exp.date} {exp.event_name} - {exp.description}
+            </Link>
+            <div style={{ paddingLeft: 12 }}>
+              <TodoList expense={exp} onChanged={load} showDone={false} />
+            </div>
+          </div>
+        ))
+      )}
+
       <h3>AI 점검 결과</h3>
       <div style={{ display: 'flex', gap: 24, fontSize: 18 }}>
         {['적합', '주의', '위반'].map((s) => (
           <span key={s} style={{ color: STATUS_COLORS[s], fontWeight: 'bold' }}>
-            {s} {countOf(s)}건
+            {STATUS_LABELS[s]} {countOf(s)}건
           </span>
         ))}
       </div>
 
       <h3>총무 결정</h3>
       <p>
-        결정 대기 {waiting.length}건 (그중 주의·위반 <b style={{ color: 'red' }}>{needCheck.length}건</b>)
+        결정 대기 {waiting.length}건 (그중 확인·조치 필요 <b style={{ color: 'red' }}>{needCheck.length}건</b>)
       </p>
       {needCheck.length > 0 && (
         <ul>
           {needCheck.map((exp) => (
             <li key={exp.id}>
-              <span style={{ color: STATUS_COLORS[exp.ai_status] }}>[{exp.ai_status}]</span>{' '}
+              <span style={{ color: STATUS_COLORS[exp.ai_status] }}>[{STATUS_LABELS[exp.ai_status]}]</span>{' '}
               <Link to={`/expenses/${exp.id}`}>
                 {exp.date} {exp.event_name} - {exp.description}
               </Link>

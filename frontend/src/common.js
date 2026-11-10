@@ -5,6 +5,9 @@ export const API_URL = 'http://localhost:8000'
 // AI 점검 결과별 글자색 (한눈에 구분되도록)
 export const STATUS_COLORS = { 적합: 'green', 주의: 'darkorange', 위반: 'red' }
 
+// AI 점검 결과를 화면에 보여줄 이름. 저장값(적합/주의/위반)은 그대로 두고 표시만 동료 말투로 바꾼다.
+export const STATUS_LABELS = { 적합: '문제 없음', 주의: '확인 필요', 위반: '조치 필요' }
+
 // 비목 목록 (감사자료에서 확인한 학생회 비목). 입력칸 자동완성에 쓴다.
 export const CATEGORIES = ['수용비', '급량비', '상품비', '대여비', '환급비', '보조비', '활동비', '교통비']
 

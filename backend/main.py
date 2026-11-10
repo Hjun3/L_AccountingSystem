@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
+import json
 import uuid
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -63,6 +64,9 @@ def init_db():
         columns = [c["name"] for c in conn.execute("PRAGMA table_info(expenses)")]
         if "memo" not in columns:
             conn.execute("ALTER TABLE expenses ADD COLUMN memo TEXT")
+        # AI가 알려 준 "챙길 것" 목록: [{"text": "...", "done": false}, ...] 을 JSON 글자로 저장
+        if "ai_todos" not in columns:
+            conn.execute("ALTER TABLE expenses ADD COLUMN ai_todos TEXT")
         # 지출에 붙인 증빙 파일 (영수증 사진 등). 실제 파일은 uploads 폴더에 저장한다
         conn.execute(
             """
@@ -144,8 +148,8 @@ def create_expense(expense: ExpenseIn):
             """
             INSERT INTO expenses
                 (org_id, date, amount, event_name, category, description, has_receipt,
-                 ai_status, ai_clause, ai_reason, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ai_status, ai_clause, ai_reason, ai_todos, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 DEFAULT_ORG_ID,
@@ -158,6 +162,7 @@ def create_expense(expense: ExpenseIn):
                 result["status"],
                 result["clause"],
                 result["reason"],
+                json.dumps([{"text": t, "done": False} for t in result.get("todos", [])], ensure_ascii=False),
                 datetime.now().isoformat(timespec="seconds"),
             ),
         )
@@ -218,6 +223,7 @@ def get_expense(expense_id: int):
 def to_dict(row, conn):
     d = dict(row)
     d["has_receipt"] = bool(d["has_receipt"])  # SQLite는 0/1로 저장하므로 True/False로 변환
+    d["ai_todos"] = json.loads(d["ai_todos"]) if d.get("ai_todos") else []
     # 이 지출의 결정 이력을 오래된 순서로 붙여서 보낸다
     logs = conn.execute(
         "SELECT from_status, to_status, explanation, created_at FROM decision_logs "
@@ -480,3 +486,23 @@ def settlement_report(start: str = "", end: str = ""):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+class TodoDoneIn(BaseModel):
+    done: bool
+
+
+@app.patch("/expenses/{expense_id}/todos/{index}")
+def toggle_todo(expense_id: int, index: int, body: TodoDoneIn):
+    """챙길 것 목록의 index번째 항목을 완료/미완료로 바꾼다."""
+    with get_conn() as conn:
+        row = conn.execute("SELECT ai_todos FROM expenses WHERE id = ?", (expense_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+        todos = json.loads(row["ai_todos"]) if row["ai_todos"] else []
+        if not 0 <= index < len(todos):
+            raise HTTPException(status_code=404, detail="해당 항목을 찾을 수 없습니다.")
+        todos[index]["done"] = body.done
+        conn.execute("UPDATE expenses SET ai_todos = ? WHERE id = ?", (json.dumps(todos, ensure_ascii=False), expense_id))
+        row = conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone()
+        return to_dict(row, conn)
