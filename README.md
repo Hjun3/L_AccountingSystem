@@ -15,6 +15,7 @@
 ## 임시 데이터 안내
 - 회계 규정: `backend/regulations/default.txt`는 **시연용 임시 규정**입니다. 총학생회칙 재정 조항 원문 발췌(제1부)와, 감사 제출 자료의 양식을 바탕으로 추정한 관행(제2부, 실제 규정 아님)으로 구성되어 있습니다. 실제 학생회 규정을 받으면 이 파일만 교체합니다.
 - 지출 데이터: `backend/sample_data/expenses.json`은 **가상으로 만든 샘플 지출**입니다.
+- 예산·일정: `backend/sample_data/demo_data.json`은 **가상으로 만든 시연용 예산과 일정**입니다.
 - 거래내역: `backend/sample_data/kakaobank_sample.xlsx`, `tossbank_sample.xlsx`는 카카오뱅크·토스뱅크 양식을 흉내 낸 **가상 거래내역**입니다. 실제 은행 파일 양식과 다를 수 있습니다. 점검 결과는 미리 정해두지 않고, 넣을 때 실제 OpenAI 호출로 만들어집니다.
 
 ## 실행 방법
@@ -40,9 +41,15 @@ npm install
 npm run dev
 ```
 
-샘플 지출을 넣으려면 (백엔드 폴더에서, 1번만 실행)
+시연용 가상 데이터(예산, 일정, 거래내역, 지출)를 넣으려면 (백엔드 폴더에서)
+여러 번 실행해도 이미 들어간 데이터는 건너뜁니다. 지출 10건은 실제 AI 점검을 거치므로 토큰이 듭니다.
 ```bash
 python sample_data/load_samples.py
+```
+
+AI 호출 없이 예산·일정·거래내역만 넣으려면
+```bash
+python sample_data/load_samples.py --no-ai
 ```
 
 브라우저에서 http://localhost:5173 을 열면 됩니다.

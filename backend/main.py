@@ -511,6 +511,19 @@ async def read_receipt_photo(file: UploadFile = File(...)):
         raise HTTPException(status_code=502, detail=str(e))
 
 
+def save_bank_transactions(transactions) -> int:
+    """거래를 저장하고 새로 저장된 건수를 돌려준다. 이미 저장된 거래(같은 일시·방향·금액·잔액)는 건너뛴다."""
+    now = datetime.now().isoformat(timespec="seconds")
+    with get_conn() as conn:
+        before = conn.execute("SELECT COUNT(*) FROM bank_transactions").fetchone()[0]
+        conn.executemany(
+            "INSERT OR IGNORE INTO bank_transactions (org_id, datetime, direction, amount, balance, content, imported_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [(DEFAULT_ORG_ID, t["datetime"], t["direction"], t["amount"], t["balance"], t["content"], now) for t in transactions],
+        )
+        return conn.execute("SELECT COUNT(*) FROM bank_transactions").fetchone()[0] - before
+
+
 @app.post("/bank/import")
 async def import_bank_excel(file: UploadFile = File(...), password: str = Form("")):
     """거래내역 엑셀을 읽어 거래를 저장하고(잔액 현황용), 출금을 등록된 지출과 날짜·금액으로 맞춰 본다.
@@ -522,16 +535,7 @@ async def import_bank_excel(file: UploadFile = File(...), password: str = Form("
     except BankImportError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # 거래를 저장한다. 이미 저장된 거래(같은 일시·방향·금액·잔액)는 건너뛴다.
-    now = datetime.now().isoformat(timespec="seconds")
-    with get_conn() as conn:
-        before = conn.execute("SELECT COUNT(*) FROM bank_transactions").fetchone()[0]
-        conn.executemany(
-            "INSERT OR IGNORE INTO bank_transactions (org_id, datetime, direction, amount, balance, content, imported_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [(DEFAULT_ORG_ID, t["datetime"], t["direction"], t["amount"], t["balance"], t["content"], now) for t in transactions],
-        )
-        saved = conn.execute("SELECT COUNT(*) FROM bank_transactions").fetchone()[0] - before
+    saved = save_bank_transactions(transactions)
 
     withdrawals = [t for t in transactions if t["direction"] == "출금"]
     if not withdrawals:

@@ -52,7 +52,7 @@ MVP 이후 추가 후보 (MVP 완성 전에는 손대지 않음)
 - frontend/ : React 앱
 - backend/ : FastAPI 서버 (main.py: API, ai_check.py: OpenAI 호출, bank_import.py: 거래내역 엑셀 읽기, report.py: 결산보고서 엑셀)
 - backend/regulations/ : 회계 규정 텍스트 파일
-- backend/sample_data/ : 시연용 샘플 지출 데이터, 가상 거래내역 엑셀
+- backend/sample_data/ : 시연용 가상 데이터 (지출 expenses.json, 예산·일정 demo_data.json, 거래내역 엑셀). load_samples.py로 한 번에 넣음 (--no-ai: 지출 제외)
 - backend/uploads/ : 첨부된 증빙 파일 (GitHub에 올리지 않음)
 
 ## 회계 규정 처리 방식
