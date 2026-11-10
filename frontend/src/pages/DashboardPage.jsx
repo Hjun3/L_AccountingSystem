@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, KIND_COLORS, termQuery, useTerm } from '../common'
+import { api, canEdit, KIND_COLORS, STATUS_COLORS, STATUS_LABELS, termQuery, useTerm, useUser } from '../common'
 import { BarList, BudgetBars, MonthBars } from '../components/Charts'
 import MiniCalendar from '../components/MiniCalendar'
 import StatusBadge from '../components/StatusBadge'
@@ -48,7 +48,8 @@ function DashboardPage() {
   const [bank, setBank] = useState(null) // 통장 현황 (불러온 거래내역 기준)
   const [budgetRows, setBudgetRows] = useState([]) // 사업별 예산 집행 (임기 전체)
   const { terms, termId } = useTerm() // 왼쪽 메뉴에서 고른 임기
-  const [groupBy, setGroupBy] = useState('category') // 지출 구성: 항목별(category) / 사업별(event_name)
+  const user = useUser()
+  const [groupBy, setGroupBy] = useState('event_name') // 지출 구성: 사업별(event_name, 기본) / 항목별(category)
   const [error, setError] = useState('')
   // 예산은 임기가 있어야 계산할 수 있다. '전체 임기'면 가장 최근 임기 예산을 쓴다.
   const budgetTerm = terms.find((t) => t.id === termId) || terms[0]
@@ -105,25 +106,37 @@ function DashboardPage() {
       {/* 1. 잔액·요약 + 달력 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(260px, 1fr)', gap: 20, marginBottom: 8 }} className="dash-top">
         <section className="card" style={{ marginBottom: 0, display: 'flex', flexDirection: 'column' }}>
-          <div className="muted">통장 잔액{bank.as_of && ` · ${bank.as_of.slice(0, 10)} 거래 기준`}</div>
-          {bank.balance === null ? (
-            <p style={{ fontSize: 15 }}>
-              거래내역을 불러오면 잔액이 보입니다. <Link to="/expenses/import">거래내역 불러오기</Link>
-            </p>
-          ) : (
-            <>
-              <div className="tnum" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em' }}>
-                {bank.balance.toLocaleString()}<span style={{ fontSize: 20, fontWeight: 600 }}>원</span>
-              </div>
-              {/* 최근 달 입출금 (통장 기준) */}
-              {bank.months.length > 0 && (
-                <div className="tnum" style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--sub)', marginTop: 6 }}>
-                  <span>{Number(bank.months[0].month.slice(5))}월 입금 <b style={{ color: 'var(--text)' }}>+{bank.months[0].deposit.toLocaleString()}</b></span>
-                  <span>출금 <b style={{ color: 'var(--text)' }}>−{bank.months[0].withdraw.toLocaleString()}</b></span>
-                  <Link to="/expenses/import" style={{ marginLeft: 'auto' }}>거래내역 대조</Link>
+          {/* 윗줄: 잔액 + 오른쪽 위 바로가기 버튼 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div className="muted">통장 잔액{bank.as_of && ` · ${bank.as_of.slice(0, 10)} 거래 기준`}</div>
+              {bank.balance === null ? (
+                <p style={{ fontSize: 15 }}>거래내역을 불러오면 잔액이 보입니다.</p>
+              ) : (
+                <div className="tnum" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em' }}>
+                  {bank.balance.toLocaleString()}<span style={{ fontSize: 20, fontWeight: 600 }}>원</span>
                 </div>
               )}
-            </>
+            </div>
+            {canEdit(user) && (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Link to="/expenses/new" className="btn primary">+ 지출 등록</Link>
+                <Link to="/expenses/import" className="btn">거래내역 불러오기</Link>
+              </div>
+            )}
+          </div>
+          {/* 최근 3개월 입출금 (통장 기준). 오래된 달부터 */}
+          {bank.months.length > 0 && (
+            <div className="tnum" style={{ display: 'grid', gridTemplateColumns: `auto repeat(${bank.months.length}, auto)`, justifyContent: 'start', columnGap: 28, rowGap: 4, marginTop: 14, fontSize: 13 }}>
+              <span className="muted">최근 입출금</span>
+              {[...bank.months].reverse().map((m) => <span key={m.month} className="muted" style={{ textAlign: 'right' }}>{Number(m.month.slice(5))}월</span>)}
+              {[['입금', 'deposit', '+'], ['출금', 'withdraw', '−']].map(([label, key, sign]) => [
+                <span key={key} className="muted">{label}</span>,
+                ...[...bank.months].reverse().map((m) => (
+                  <b key={key + m.month} style={{ textAlign: 'right' }}>{m[key] ? `${sign}${m[key].toLocaleString()}` : '-'}</b>
+                )),
+              ])}
+            </div>
           )}
           {/* 요약 3개: 같은 모양 카드 대신 한 줄에 구분선으로 */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 'auto', paddingTop: 18, borderTop: '1px solid var(--line)' }}>
@@ -153,11 +166,16 @@ function DashboardPage() {
         <section style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="section-title">
             <h3>챙길 것 <span className="tnum" style={{ color: 'var(--bad)' }}>{todoCount || ''}</span></h3>
-            <span className="muted">AI가 알려 준 할 일. 끝내면 체크하세요.</span>
+            {/* 점 색 설명 */}
+            <span className="muted" style={{ display: 'flex', gap: 10 }}>
+              {['위반', '주의', '적합'].map((st) => (
+                <span key={st}><span style={{ color: STATUS_COLORS[st] }}>●</span> {STATUS_LABELS[st]}</span>
+              ))}
+            </span>
           </div>
           {/* 카드 높이는 오른쪽 칸에 맞추고, 넘치면 카드 안에서 스크롤한다 */}
           <div className="card" style={{ padding: 0, marginBottom: 0, flex: 1, position: 'relative', minHeight: 320 }}>
-            <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: '4px 20px' }}>
+            <div style={{ position: 'absolute', inset: 0 }}>
               <DashboardTodos expenses={expenses} onChanged={load} />
             </div>
           </div>
@@ -225,7 +243,7 @@ function DashboardPage() {
             <h3>지출 구성</h3>
             {/* 항목별 / 사업별 전환 */}
             <div style={{ display: 'flex', gap: 4 }}>
-              {[['category', '항목별'], ['event_name', '사업별']].map(([key, label]) => (
+              {[['event_name', '사업별'], ['category', '항목별']].map(([key, label]) => (
                 <button key={key} onClick={() => setGroupBy(key)} className={groupBy === key ? 'active' : ''} style={{ fontSize: 12, padding: '0 10px' }}>{label}</button>
               ))}
             </div>
