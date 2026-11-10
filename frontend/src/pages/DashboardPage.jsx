@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, KIND_COLORS, STATUS_COLORS, STATUS_LABELS } from '../common'
+import { api, KIND_COLORS, STATUS_COLORS, STATUS_LABELS, termQuery, useTerm } from '../common'
 import TodoList from '../components/TodoList'
 
 // 지출 목록을 기준(사업명, 비목 등)별로 묶어 금액 합계와 건수를 구한다
@@ -43,10 +43,11 @@ function DashboardPage() {
   const [expenses, setExpenses] = useState(null)
   const [schedules, setSchedules] = useState([])
   const [bank, setBank] = useState(null) // 통장 현황 (불러온 거래내역 기준)
+  const { termId } = useTerm() // 위 메뉴에서 고른 임기
   const [error, setError] = useState('')
 
   function load() {
-    Promise.all([api('/expenses'), api('/schedules'), api('/bank/summary')])
+    Promise.all([api('/expenses' + termQuery(termId)), api('/schedules'), api('/bank/summary' + termQuery(termId))])
       .then(([exps, schs, bankSummary]) => {
         setExpenses(exps)
         setSchedules(schs)
@@ -55,7 +56,7 @@ function DashboardPage() {
       .catch((e) => setError(e.message))
   }
 
-  useEffect(load, [])
+  useEffect(load, [termId]) // 임기를 바꾸면 다시 불러온다
 
   if (error) return <p style={{ color: 'red' }}>{error}</p>
   if (!expenses) return <p>불러오는 중...</p>

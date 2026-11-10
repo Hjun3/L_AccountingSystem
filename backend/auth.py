@@ -125,6 +125,8 @@ def required_role(method: str, path: str) -> set[str] | None:
         return {"admin"}
     if path.startswith("/auth/"):
         return None
+    if path.startswith("/terms") and method != "GET":
+        return {"admin"}  # 새 임기 만들기는 관리자만
     if method == "GET":
         return None  # 보기는 모든 역할 가능
     return {"admin", "treasurer"}  # 등록·수정·삭제는 관리자와 총무만

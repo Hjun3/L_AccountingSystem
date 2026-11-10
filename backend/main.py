@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -49,6 +49,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(auth.router)
+
+
+def ensure_term(conn, year):
+    """그 연도의 임기가 있으면 id를, 없으면 만들어서 id를 돌려준다."""
+    row = conn.execute("SELECT id FROM terms WHERE org_id = ? AND year = ?", (DEFAULT_ORG_ID, year)).fetchone()
+    if row:
+        return row["id"]
+    cur = conn.execute(
+        "INSERT INTO terms (org_id, year, name, created_at) VALUES (?, ?, ?, ?)",
+        (DEFAULT_ORG_ID, year, f"{year}년", now_text()),
+    )
+    return cur.lastrowid
+
+
+def create_term_with_periods(conn, year):
+    """임기와 기본 기간 3개(학기 전 1~2월, 1학기 3~7월, 2학기 8~12월)를 만든다."""
+    term_id = ensure_term(conn, year)
+    end_feb = "29" if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else "28"
+    # 지난 임기의 2학기가 올해 초까지 이어지면, 겹치지 않게 '학기 전'을 그다음 날부터 시작한다
+    start = f"{year}-01-01"
+    prev_end = conn.execute(
+        "SELECT MAX(p.end_date) FROM periods p JOIN terms t ON t.id = p.term_id WHERE t.year = ?", (year - 1,)
+    ).fetchone()[0]
+    if prev_end and prev_end >= start:
+        start = (datetime.fromisoformat(prev_end) + timedelta(days=1)).date().isoformat()
+        start = min(start, f"{year}-02-{end_feb}")
+    conn.executemany(
+        "INSERT INTO periods (org_id, term_id, name, start_date, end_date, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            (DEFAULT_ORG_ID, term_id, "학기 전", start, f"{year}-02-{end_feb}", 1),
+            (DEFAULT_ORG_ID, term_id, "1학기", f"{year}-03-01", f"{year}-07-31", 2),
+            (DEFAULT_ORG_ID, term_id, "2학기", f"{year}-08-01", f"{year}-12-31", 3),
+        ],
+    )
+    return term_id
+
+
+def term_range(conn, term_id):
+    """임기의 날짜 범위 = 그 임기 기간들의 가장 이른 시작일 ~ 가장 늦은 종료일"""
+    row = conn.execute("SELECT MIN(start_date) AS s, MAX(end_date) AS e FROM periods WHERE term_id = ?", (term_id,)).fetchone()
+    if row is None or row["s"] is None:
+        raise HTTPException(status_code=404, detail="해당 임기를 찾을 수 없습니다.")
+    return row["s"], row["e"]
 
 
 def init_db():
@@ -141,6 +184,19 @@ def init_db():
             )
             """
         )
+        # 임기(회계연도): 예) 2026년. 기간(학기 전/1학기/2학기)이 임기에 속한다. 다음 학생회는 새 임기를 만들어 쓴다.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS terms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id TEXT NOT NULL,
+                year INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE (org_id, year)
+            )
+            """
+        )
         # 예산 기간: 학기 전 / 1학기 / 2학기. 지출은 날짜가 기간 범위에 들어가면 그 기간으로 본다.
         conn.execute(
             """
@@ -154,16 +210,14 @@ def init_db():
             )
             """
         )
-        if conn.execute("SELECT COUNT(*) FROM periods").fetchone()[0] == 0:
-            year = datetime.now().year
-            conn.executemany(
-                "INSERT INTO periods (org_id, name, start_date, end_date, sort_order) VALUES (?, ?, ?, ?, ?)",
-                [
-                    (DEFAULT_ORG_ID, "학기 전", f"{year}-01-01", f"{year}-02-28", 1),
-                    (DEFAULT_ORG_ID, "1학기", f"{year}-03-01", f"{year}-07-31", 2),
-                    (DEFAULT_ORG_ID, "2학기", f"{year}-08-01", f"{year}-12-31", 3),
-                ],
-            )
+        if "term_id" not in [c["name"] for c in conn.execute("PRAGMA table_info(periods)")]:
+            conn.execute("ALTER TABLE periods ADD COLUMN term_id INTEGER")
+        # 임기가 없는 기존 기간은 시작일의 연도 임기에 넣는다
+        for p in conn.execute("SELECT id, start_date FROM periods WHERE term_id IS NULL").fetchall():
+            conn.execute("UPDATE periods SET term_id = ? WHERE id = ?", (ensure_term(conn, int(p["start_date"][:4])), p["id"]))
+        # 처음 실행이면 올해 임기와 기간 3개를 만든다
+        if conn.execute("SELECT COUNT(*) FROM terms").fetchone()[0] == 0:
+            create_term_with_periods(conn, datetime.now().year)
         budget_columns = [c["name"] for c in conn.execute("PRAGMA table_info(budgets)")]
         if "period_id" not in budget_columns:
             conn.execute("ALTER TABLE budgets ADD COLUMN period_id INTEGER")
@@ -318,9 +372,14 @@ def decide_expense(expense_id: int, decision: DecisionIn):
 
 
 @app.get("/expenses")
-def list_expenses():
+def list_expenses(term_id: int | None = None):
+    """지출 목록. term_id를 주면 그 임기 날짜 범위의 지출만 돌려준다."""
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM expenses WHERE deleted_at IS NULL ORDER BY id DESC").fetchall()
+        query, params = "SELECT * FROM expenses WHERE deleted_at IS NULL", []
+        if term_id is not None:
+            query += " AND date BETWEEN ? AND ?"
+            params += term_range(conn, term_id)
+        rows = conn.execute(query + " ORDER BY id DESC", params).fetchall()
         return [to_dict(r, conn) for r in rows]
 
 
@@ -638,10 +697,53 @@ def budget_overview(conn, period_id):
     return {"period": period, "budgets": budgets, "unbudgeted": unbudgeted, "monthly": monthly}
 
 
-@app.get("/periods")
-def list_periods():
+@app.get("/terms")
+def list_terms():
+    """임기 목록 (최근 연도부터). 각 임기의 날짜 범위도 함께."""
     with get_conn() as conn:
-        return [dict(r) for r in conn.execute("SELECT * FROM periods ORDER BY sort_order")]
+        terms = [dict(r) for r in conn.execute("SELECT * FROM terms ORDER BY year DESC")]
+        for t in terms:
+            t["start_date"], t["end_date"] = term_range(conn, t["id"])
+        return terms
+
+
+class TermIn(BaseModel):
+    year: int
+    copy_budgets_from: int | None = None  # 이 임기의 예산(사업·비목·금액)을 복사해 온다
+
+
+@app.post("/terms")
+def create_term(body: TermIn):
+    """새 임기를 만든다 (관리자만). 다음 학생회가 쓸 때 사용."""
+    if not 2000 <= body.year <= 2100:
+        raise HTTPException(status_code=400, detail="연도를 확인하세요.")
+    with get_conn() as conn:
+        if conn.execute("SELECT 1 FROM terms WHERE org_id = ? AND year = ?", (DEFAULT_ORG_ID, body.year)).fetchone():
+            raise HTTPException(status_code=400, detail=f"{body.year}년 임기가 이미 있습니다.")
+        term_id = create_term_with_periods(conn, body.year)
+        if body.copy_budgets_from is not None:
+            # 같은 이름의 기간(학기 전/1학기/2학기)끼리 예산 줄을 복사한다
+            new_periods = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM periods WHERE term_id = ?", (term_id,))}
+            old = conn.execute(
+                "SELECT p.name AS period_name, b.event_name, b.category, b.amount, b.memo FROM budgets b "
+                "JOIN periods p ON p.id = b.period_id WHERE p.term_id = ?",
+                (body.copy_budgets_from,),
+            ).fetchall()
+            for b in old:
+                if b["period_name"] in new_periods:
+                    conn.execute(
+                        "INSERT INTO budgets (org_id, period_id, event_name, category, amount, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (DEFAULT_ORG_ID, new_periods[b["period_name"]], b["event_name"], b["category"], b["amount"], b["memo"], now_text()),
+                    )
+    return list_terms()
+
+
+@app.get("/periods")
+def list_periods(term_id: int | None = None):
+    with get_conn() as conn:
+        if term_id is None:
+            return [dict(r) for r in conn.execute("SELECT * FROM periods ORDER BY term_id, sort_order")]
+        return [dict(r) for r in conn.execute("SELECT * FROM periods WHERE term_id = ? ORDER BY sort_order", (term_id,))]
 
 
 class PeriodIn(BaseModel):
@@ -656,7 +758,8 @@ def update_period(period_id: int, body: PeriodIn):
     with get_conn() as conn:
         get_period(conn, period_id)
         conn.execute("UPDATE periods SET start_date = ?, end_date = ? WHERE id = ?", (body.start_date, body.end_date, period_id))
-        return [dict(r) for r in conn.execute("SELECT * FROM periods ORDER BY sort_order")]
+        term_id = conn.execute("SELECT term_id FROM periods WHERE id = ?", (period_id,)).fetchone()["term_id"]
+        return [dict(r) for r in conn.execute("SELECT * FROM periods WHERE term_id = ? ORDER BY sort_order", (term_id,))]
 
 
 @app.get("/budgets")
@@ -761,19 +864,26 @@ def toggle_todo(expense_id: int, index: int, body: TodoDoneIn):
 
 
 @app.get("/bank/summary")
-def bank_summary():
-    """저장된 거래로 최근 잔액과 월별 입출금 합계를 돌려준다. (대시보드용)"""
+def bank_summary(term_id: int | None = None):
+    """저장된 거래로 최근 잔액과 월별 입출금 합계를 돌려준다. (대시보드용)
+    term_id를 주면 그 임기 범위 안의 마지막 잔액과 월별 합계(최근 3개월)를 돌려준다."""
     with get_conn() as conn:
+        where, params = "", []
+        if term_id is not None:
+            start, end = term_range(conn, term_id)
+            where, params = "AND datetime BETWEEN ? AND ?", [start, end + "T23:59:59"]
         latest = conn.execute(
-            "SELECT datetime, balance FROM bank_transactions WHERE balance IS NOT NULL ORDER BY datetime DESC, id DESC LIMIT 1"
+            f"SELECT datetime, balance FROM bank_transactions WHERE balance IS NOT NULL {where} ORDER BY datetime DESC, id DESC LIMIT 1",
+            params,
         ).fetchone()
         months = conn.execute(
-            """
+            f"""
             SELECT substr(datetime, 1, 7) AS month,
                    SUM(CASE WHEN direction = '입금' THEN amount ELSE 0 END) AS deposit,
                    SUM(CASE WHEN direction = '출금' THEN amount ELSE 0 END) AS withdraw
-            FROM bank_transactions GROUP BY month ORDER BY month DESC LIMIT 3
-            """
+            FROM bank_transactions WHERE 1=1 {where} GROUP BY month ORDER BY month DESC LIMIT 3
+            """,
+            params,
         ).fetchall()
     return {
         "balance": latest["balance"] if latest else None,

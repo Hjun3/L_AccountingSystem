@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, API_URL } from '../common'
+import { api, API_URL, isAdmin, useTerm, useUser } from '../common'
 import NameSuggestions from '../components/NameSuggestions'
 
 const won = (n) => `${n.toLocaleString()}원`
@@ -110,6 +110,45 @@ function MonthlyTable({ monthly }) {
   )
 }
 
+// 새 임기 만들기 (관리자만): 다음 학생회가 쓸 때. 지금 임기의 예산 구조를 복사할 수 있다.
+function NewTermForm({ terms, currentTerm, onCreated }) {
+  const nextYear = Math.max(new Date().getFullYear(), ...terms.map((t) => t.year)) + 1
+  const [year, setYear] = useState(nextYear)
+  const [copy, setCopy] = useState(true)
+  const [error, setError] = useState('')
+
+  async function submit(e) {
+    e.preventDefault()
+    setError('')
+    const copyText = copy && currentTerm ? ` (${currentTerm.name} 예산 복사)` : ''
+    if (!window.confirm(`${year}년 임기를 만들까요?${copyText}`)) return
+    try {
+      const list = await api('/terms', {
+        method: 'POST',
+        body: JSON.stringify({ year: Number(year), copy_budgets_from: copy && currentTerm ? currentTerm.id : null }),
+      })
+      onCreated(list.find((t) => t.year === Number(year)).id)
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} style={{ border: '1px dashed gray', padding: 8, marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <b>새 임기 만들기</b>
+      <input type="number" value={year} onChange={(e) => setYear(e.target.value)} style={{ width: 80 }} />년
+      {currentTerm && (
+        <label>
+          <input type="checkbox" checked={copy} onChange={(e) => setCopy(e.target.checked)} /> {currentTerm.name} 예산(사업·비목·금액) 복사
+        </label>
+      )}
+      <button type="submit">만들기</button>
+      <span style={{ fontSize: 12, color: 'gray' }}>다음 학생회가 쓸 때 만듭니다. 기간 3개(학기 전/1학기/2학기)가 함께 만들어집니다.</span>
+      {error && <span style={{ color: 'red' }}>{error}</span>}
+    </form>
+  )
+}
+
 // 예산 페이지: 기간(학기 전/1학기/2학기)을 고르고, 그 기간의 사업·비목별 예산 대비 지출과 월별 지출을 본다
 function BudgetPage() {
   const [periods, setPeriods] = useState([])
@@ -117,13 +156,18 @@ function BudgetPage() {
   const [data, setData] = useState(null)
   const [form, setForm] = useState({ event_name: '', category: '', amount: '' })
   const [error, setError] = useState('')
+  const user = useUser()
+  const { terms, termId, reloadTerms } = useTerm()
+  // 위 메뉴에서 '전체 임기'를 고르면 예산은 가장 최근 임기를 보여준다
+  const term = terms.find((t) => t.id === termId) || terms[0]
 
-  // 기간 목록을 불러오고, 처음에는 오늘이 들어 있는 기간을 고른다
-  async function loadPeriods() {
+  // 그 임기의 기간 목록을 불러오고, 처음에는 오늘이 들어 있는 기간을 고른다
+  async function loadPeriods(reset = false) {
+    if (!term) return
     try {
-      const list = await api('/periods')
+      const list = await api(`/periods?term_id=${term.id}`)
       setPeriods(list)
-      if (periodId === null) {
+      if (reset || periodId === null) {
         const today = new Date().toLocaleDateString('sv')
         const current = list.find((p) => p.start_date <= today && today <= p.end_date) || list[0]
         setPeriodId(current.id)
@@ -143,9 +187,11 @@ function BudgetPage() {
     }
   }
 
+  // 임기가 바뀌면 그 임기의 기간으로 새로 시작한다
   useEffect(() => {
-    loadPeriods()
-  }, [])
+    setData(null)
+    loadPeriods(true)
+  }, [term?.id])
 
   useEffect(() => {
     if (periodId !== null) loadBudgets(periodId)
@@ -163,7 +209,7 @@ function BudgetPage() {
   }
 
   const period = periods.find((p) => p.id === periodId)
-  if (!data || !period) return error ? <p style={{ color: 'red' }}>{error}</p> : <p>불러오는 중...</p>
+  if (!data || !period || data.period.id !== period.id) return error ? <p style={{ color: 'red' }}>{error}</p> : <p>불러오는 중...</p>
 
   // 예산 줄을 사업명별로 묶는다
   const groups = {}
@@ -173,8 +219,10 @@ function BudgetPage() {
 
   return (
     <div>
-      <h2>예산</h2>
+      <h2>예산 ({term.name})</h2>
+      {termId === null && <p style={{ fontSize: 12, color: 'gray' }}>'전체 임기'를 고른 상태라 가장 최근 임기({term.name}) 예산을 보여줍니다.</p>}
       <NameSuggestions />
+      {isAdmin(user) && <NewTermForm terms={terms} currentTerm={term} onCreated={(id) => reloadTerms(id)} />}
 
       {/* 기간 탭 */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
@@ -184,7 +232,7 @@ function BudgetPage() {
           </button>
         ))}
       </div>
-      <PeriodDates key={period.id + period.start_date + period.end_date} period={period} onSaved={loadPeriods} setError={setError} />
+      <PeriodDates key={period.id + period.start_date + period.end_date} period={period} onSaved={() => { loadPeriods(); reloadTerms(termId) }} setError={setError} />
 
       <p>
         <b>{period.name}</b> 총예산 <b>{won(total.amount)}</b> · 지출 <b>{won(total.spent)}</b> · 남은 금액{' '}

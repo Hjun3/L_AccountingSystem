@@ -23,13 +23,20 @@ sys.path.insert(0, str(BACKEND_DIR))  # backend 폴더의 main.py를 불러올 �
 from fastapi import HTTPException  # noqa: E402
 
 from bank_import import parse_transactions  # noqa: E402
-from main import DEFAULT_ORG_ID, ExpenseIn, create_expense, get_conn, now_text, save_bank_transactions  # noqa: E402
+from main import DEFAULT_ORG_ID, ExpenseIn, create_expense, ensure_term, get_conn, now_text, save_bank_transactions  # noqa: E402
+from main import create_term_with_periods  # noqa: E402
+
+DEMO_YEAR = 2026  # 시연용 가상 데이터의 연도
 
 demo = json.loads((SAMPLE_DIR / "demo_data.json").read_text(encoding="utf-8"))
 
 # 1. 예산
 with get_conn() as conn:
-    period_ids = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM periods")}
+    # 2026년 임기가 없으면 만들고, 그 임기의 기간(학기 전/1학기/2학기)에 예산을 넣는다
+    if not conn.execute("SELECT 1 FROM terms WHERE year = ?", (DEMO_YEAR,)).fetchone():
+        create_term_with_periods(conn, DEMO_YEAR)
+    term_id = ensure_term(conn, DEMO_YEAR)
+    period_ids = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM periods WHERE term_id = ?", (term_id,))}
     added = 0
     for b in demo["budgets"]:
         period_id = period_ids[b["period"]]

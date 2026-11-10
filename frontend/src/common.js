@@ -13,6 +13,12 @@ export const useUser = () => useContext(UserContext)
 export const canEdit = (user) => user && (user.role === 'admin' || user.role === 'treasurer')
 export const isAdmin = (user) => user && user.role === 'admin'
 
+// 지금 고른 임기(예: 2026년). termId가 null이면 '전체'. (App.jsx에서 값을 넣음)
+export const TermContext = createContext({ terms: [], termId: null, setTermId: () => {}, reloadTerms: () => {} })
+export const useTerm = () => useContext(TermContext)
+// 서버 요청 주소 뒤에 붙일 임기 조건. 예: '?term_id=3' (전체면 빈 글자)
+export const termQuery = (termId) => (termId ? `?term_id=${termId}` : '')
+
 // AI 점검 결과를 화면에 보여줄 이름. 저장값(적합/주의/위반)은 그대로 두고 표시만 동료 말투로 바꾼다.
 export const STATUS_LABELS = { 적합: '문제 없음', 주의: '확인 필요', 위반: '조치 필요' }
 

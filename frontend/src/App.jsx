@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, NavLink, Route, Routes } from 'react-router-dom'
-import { api, canEdit, isAdmin, UserContext } from './common'
+import { api, canEdit, isAdmin, TermContext, UserContext } from './common'
 import BankImportPage from './pages/BankImportPage'
 import BudgetPage from './pages/BudgetPage'
 import CalendarPage from './pages/CalendarPage'
@@ -16,10 +16,15 @@ import RegulationPage from './pages/RegulationPage'
 import UsersPage from './pages/UsersPage'
 
 // 상단 메뉴: 현재 보고 있는 페이지는 굵게 표시. 역할에 따라 보이는 메뉴가 다르다.
-function NavMenu({ user, onLogout }) {
+function NavMenu({ user, onLogout, terms, termId, setTermId }) {
   const style = ({ isActive }) => ({ fontWeight: isActive ? 'bold' : 'normal' })
   return (
     <nav className="no-print" style={{ display: 'flex', gap: 16, borderBottom: '1px solid gray', paddingBottom: 8, flexWrap: 'wrap' }}>
+      {/* 임기 선택: 대시보드·지출 목록·예산이 이 임기 기준으로 보인다 */}
+      <select value={termId ?? 'all'} onChange={(e) => setTermId(e.target.value === 'all' ? null : Number(e.target.value))} title="임기 선택">
+        {terms.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        <option value="all">전체 임기</option>
+      </select>
       <NavLink to="/" end style={style}>대시보드</NavLink>
       {canEdit(user) && <NavLink to="/expenses/new" style={style}>지출 등록</NavLink>}
       {canEdit(user) && <NavLink to="/expenses/import" style={style}>거래내역 불러오기</NavLink>}
@@ -41,6 +46,40 @@ function NavMenu({ user, onLogout }) {
 function App() {
   // undefined: 확인 중, null: 로그인 안 됨, 객체: 로그인한 사용자
   const [user, setUser] = useState(undefined)
+  const [terms, setTerms] = useState([])
+  const [termId, setTermIdState] = useState(null)
+
+  // 임기 선택은 브라우저에 기억해 둔다 (새로고침해도 유지)
+  function setTermId(id) {
+    setTermIdState(id)
+    try {
+      localStorage.setItem('termId', id === null ? 'all' : String(id))
+    } catch {
+      /* 저장이 안 되는 브라우저면 무시 */
+    }
+  }
+
+  // 임기 목록을 불러오고, 처음에는 기억해 둔 임기 → 오늘이 들어 있는 임기 → 가장 최근 임기 순으로 고른다
+  async function reloadTerms(selectId) {
+    const list = await api('/terms')
+    setTerms(list)
+    if (selectId !== undefined) return setTermId(selectId)
+    let saved = null
+    try {
+      saved = localStorage.getItem('termId')
+    } catch {
+      /* 무시 */
+    }
+    if (saved === 'all') return setTermIdState(null)
+    if (saved && list.some((t) => String(t.id) === saved)) return setTermIdState(Number(saved))
+    const today = new Date().toLocaleDateString('sv')
+    const current = list.find((t) => t.start_date <= today && today <= t.end_date) || list[0]
+    setTermIdState(current ? current.id : null)
+  }
+
+  useEffect(() => {
+    if (user && !user.must_change_password) reloadTerms().catch(() => {})
+  }, [user])
 
   async function loadMe() {
     try {
@@ -78,10 +117,11 @@ function App() {
   // 주소(URL)에 따라 어떤 페이지를 보여줄지 정한다
   return (
     <UserContext.Provider value={user}>
+      <TermContext.Provider value={{ terms, termId, setTermId, reloadTerms }}>
       <BrowserRouter>
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: 16 }}>
           <h1 className="no-print">학생회 회계 점검 동료</h1>
-          <NavMenu user={user} onLogout={logout} />
+          <NavMenu user={user} onLogout={logout} terms={terms} termId={termId} setTermId={setTermId} />
           {!canEdit(user) && (
             <p className="no-print" style={{ background: '#eef', padding: 6, fontSize: 13 }}>
               열람 계정입니다. 보기만 할 수 있고, 등록·수정은 할 수 없습니다.
@@ -103,6 +143,7 @@ function App() {
           </Routes>
         </div>
       </BrowserRouter>
+      </TermContext.Provider>
     </UserContext.Provider>
   )
 }

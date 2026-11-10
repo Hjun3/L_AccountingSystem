@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, STATUS_COLORS, STATUS_LABELS } from '../common'
+import { api, STATUS_COLORS, STATUS_LABELS, termQuery, useTerm } from '../common'
 import DecisionCell from '../components/DecisionCell'
 
 // 필터 버튼 목록: AI 점검 결과와 총무 결정 상태로 걸러 본다
@@ -17,10 +17,11 @@ function ExpenseListPage() {
   const [expenses, setExpenses] = useState([])
   const [filter, setFilter] = useState('전체')
   const [error, setError] = useState('')
+  const { termId } = useTerm() // 위 메뉴에서 고른 임기
 
   async function loadExpenses() {
     try {
-      setExpenses(await api('/expenses'))
+      setExpenses(await api('/expenses' + termQuery(termId)))
     } catch (e) {
       setError(e.message)
     }
@@ -29,7 +30,7 @@ function ExpenseListPage() {
   // 화면이 처음 열릴 때 한 번 목록을 불러온다
   useEffect(() => {
     loadExpenses()
-  }, [])
+  }, [termId]) // 임기를 바꾸면 다시 불러온다
 
   const shown = expenses.filter((exp) => matchesFilter(exp, filter))
 
