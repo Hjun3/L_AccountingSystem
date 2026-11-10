@@ -27,6 +27,13 @@ SYSTEM_PROMPT = """너는 학생회 회계 감사를 돕는 점검 담당자다.
 """
 
 
+def log_usage(kind: str, response) -> None:
+    """OpenAI 호출 1번에 쓴 토큰 수를 서버 화면(터미널)에 출력한다. 비용 확인용."""
+    u = response.usage
+    cached = getattr(u.prompt_tokens_details, "cached_tokens", 0) if u.prompt_tokens_details else 0
+    print(f"[토큰] {kind}: 입력 {u.prompt_tokens} (캐시 {cached}) + 출력 {u.completion_tokens} = {u.total_tokens}")
+
+
 class AICheckError(Exception):
     """AI 점검에 실패했을 때 사용하는 에러 (호출 실패, JSON 파싱 실패 등)"""
 
@@ -60,6 +67,7 @@ def check_expense(expense: dict) -> dict:
     except Exception as e:
         raise AICheckError(f"OpenAI 호출 실패: {e}")
 
+    log_usage("지출 점검", response)
     return parse_result(response.choices[0].message.content)
 
 
@@ -110,6 +118,7 @@ def read_receipt(image_bytes: bytes, ext: str) -> dict:
     except Exception as e:
         raise AICheckError(f"OpenAI 호출 실패: {e}")
 
+    log_usage("영수증 읽기", response)
     text = response.choices[0].message.content
     try:
         data = json.loads(text)

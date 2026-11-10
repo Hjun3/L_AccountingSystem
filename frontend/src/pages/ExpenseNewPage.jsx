@@ -12,6 +12,25 @@ const EMPTY_FORM = {
   has_receipt: true,
 }
 
+// 사진을 긴 쪽이 maxSide 픽셀 이하가 되도록 줄여서 JPEG로 돌려준다.
+// 휴대폰 원본 사진은 커서 AI 토큰이 많이 들기 때문에, AI에 보낼 때만 줄인다. (증빙 첨부는 원본 그대로)
+function shrinkImage(file, maxSide = 1280) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(img.src)
+      canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.85)
+    }
+    img.onerror = () => resolve(file) // 줄이지 못하면 원본을 그대로 보냄
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 // 지출 등록 페이지: 저장하면 AI 점검을 거친 뒤 그 지출의 상세 페이지로 이동한다
 function ExpenseNewPage() {
   const [form, setForm] = useState(EMPTY_FORM)
@@ -38,7 +57,7 @@ function ExpenseNewPage() {
     setReading(true)
     try {
       const body = new FormData()
-      body.append('file', file)
+      body.append('file', await shrinkImage(file), 'receipt.jpg')
       const r = await api('/receipts/read', { method: 'POST', body })
       setForm({
         ...form,
