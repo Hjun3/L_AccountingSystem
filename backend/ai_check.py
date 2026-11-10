@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 from pathlib import Path
@@ -76,4 +77,51 @@ def parse_result(text: str) -> dict:
         "status": data["status"],
         "clause": str(data.get("clause", "")),
         "reason": str(data.get("reason", "")),
+    }
+
+
+RECEIPT_PROMPT = """너는 영수증 사진에서 지출 정보를 읽어 내는 도우미다.
+사진에 보이는 내용만 읽고, 보이지 않는 값은 추측하지 마라.
+
+반드시 아래 JSON 형식만 출력하라. 다른 말은 쓰지 마라.
+{"is_receipt": true 또는 false, "date": "YYYY-MM-DD (안 보이면 빈 문자열)", "amount": 합계 금액 정수 (안 보이면 null), "store": "상호명 (안 보이면 빈 문자열)", "items": "구매 품목과 수량 요약 (예: 생수 100개, 이온음료 30개)"}
+영수증이 아닌 사진이면 is_receipt를 false로 하라."""
+
+# OpenAI가 읽을 수 있는 이미지 형식
+RECEIPT_MIME_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+
+
+def read_receipt(image_bytes: bytes, ext: str) -> dict:
+    """영수증 사진을 OpenAI에 보내 날짜, 금액, 상호, 품목을 읽어 온다. (값은 총무가 확인 후 저장)"""
+    if not os.getenv("OPENAI_API_KEY"):
+        raise AICheckError("OPENAI_API_KEY가 없습니다. backend/.env 파일을 확인하세요.")
+
+    # 사진을 글자(base64)로 바꿔서 메시지에 함께 보낸다
+    data_url = f"data:{RECEIPT_MIME_TYPES[ext]};base64," + base64.b64encode(image_bytes).decode()
+    try:
+        response = OpenAI().chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": RECEIPT_PROMPT},
+                {"role": "user", "content": [{"type": "image_url", "image_url": {"url": data_url}}]},
+            ],
+            response_format={"type": "json_object"},
+        )
+    except Exception as e:
+        raise AICheckError(f"OpenAI 호출 실패: {e}")
+
+    text = response.choices[0].message.content
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        raise AICheckError(f"AI 응답을 JSON으로 읽을 수 없습니다: {text}")
+    if not data.get("is_receipt"):
+        raise AICheckError("영수증으로 보이지 않는 사진입니다. 영수증이 잘 보이게 다시 찍어 주세요.")
+
+    amount = data.get("amount")
+    return {
+        "date": str(data.get("date") or ""),
+        "amount": amount if isinstance(amount, int) else None,
+        "store": str(data.get("store") or ""),
+        "items": str(data.get("items") or ""),
     }

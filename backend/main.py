@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from ai_check import REGULATION_PATH, AICheckError, check_expense
+from ai_check import RECEIPT_MIME_TYPES, REGULATION_PATH, AICheckError, check_expense, read_receipt
 
 DB_PATH = Path(__file__).parent / "expenses.db"
 UPLOAD_DIR = Path(__file__).parent / "uploads"  # 첨부파일 저장 폴더 (GitHub에 올리지 않음)
@@ -320,3 +320,18 @@ def delete_attachment(attachment_id: int):
         conn.execute("DELETE FROM attachments WHERE id = ?", (attachment_id,))
     (UPLOAD_DIR / row["stored_name"]).unlink(missing_ok=True)
     return {"deleted": attachment_id}
+
+
+@app.post("/receipts/read")
+async def read_receipt_photo(file: UploadFile = File(...)):
+    """영수증 사진을 읽어 지출 등록 폼에 채울 값을 돌려준다. (DB에는 저장하지 않음)"""
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in RECEIPT_MIME_TYPES:
+        raise HTTPException(status_code=400, detail="영수증 읽기는 jpg, png, webp 사진만 됩니다. (아이폰 HEIC는 설정에서 '높은 호환성'으로 찍어 주세요)")
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="파일은 10MB 이하만 올릴 수 있습니다.")
+    try:
+        return read_receipt(content, ext)
+    except AICheckError as e:
+        raise HTTPException(status_code=502, detail=str(e))

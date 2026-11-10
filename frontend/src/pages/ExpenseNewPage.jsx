@@ -17,12 +17,43 @@ function ExpenseNewPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false) // AI 점검 중에는 저장 버튼을 막아 중복 저장을 방지
+  const [receiptFile, setReceiptFile] = useState(null) // 읽어 온 영수증 사진 (저장 후 증빙으로 자동 첨부)
+  const [reading, setReading] = useState(false)
+  const [readNotice, setReadNotice] = useState('')
   const navigate = useNavigate()
 
   // 입력칸 값이 바뀔 때마다 form 상태를 갱신 (체크박스는 checked 값을 사용)
   function handleChange(e) {
     const { name, value, type, checked } = e.target
     setForm({ ...form, [name]: type === 'checkbox' ? checked : value })
+  }
+
+  // 영수증 사진을 AI로 읽어서 폼에 채운다. 값은 총무가 확인하고 고친 뒤 저장한다.
+  async function readReceipt(e) {
+    const file = e.target.files[0]
+    e.target.value = ''
+    if (!file) return
+    setError('')
+    setReadNotice('')
+    setReading(true)
+    try {
+      const body = new FormData()
+      body.append('file', file)
+      const r = await api('/receipts/read', { method: 'POST', body })
+      setForm({
+        ...form,
+        date: r.date || form.date,
+        amount: r.amount ?? form.amount,
+        description: [r.items, r.store && `[${r.store}]`].filter(Boolean).join(' ') || form.description,
+        has_receipt: true,
+      })
+      setReceiptFile(file)
+      setReadNotice('AI가 읽은 값을 채웠습니다. 틀린 곳이 없는지 확인하고, 사업명과 지출 항목을 입력한 뒤 저장하세요.')
+    } catch (e) {
+      setError(`영수증 읽기에 실패했습니다. ${e.message}`)
+    } finally {
+      setReading(false)
+    }
   }
 
   async function handleSubmit(e) {
@@ -34,6 +65,12 @@ function ExpenseNewPage() {
         method: 'POST',
         body: JSON.stringify({ ...form, amount: Number(form.amount) }),
       })
+      // 영수증 사진으로 채웠다면 그 사진을 증빙 파일로 붙인다
+      if (receiptFile) {
+        const body = new FormData()
+        body.append('file', receiptFile)
+        await api(`/expenses/${saved.id}/attachments`, { method: 'POST', body }).catch(() => {})
+      }
       navigate(`/expenses/${saved.id}`)
     } catch (e) {
       setError(`저장에 실패했습니다. ${e.message}`)
@@ -45,6 +82,13 @@ function ExpenseNewPage() {
   return (
     <div>
       <h2>지출 등록</h2>
+      <div style={{ border: '1px dashed gray', padding: 8, marginBottom: 12, maxWidth: 384 }}>
+        <b>영수증 사진으로 채우기</b>{' '}
+        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={readReceipt} disabled={reading || saving} />
+        {reading && <div>AI가 영수증을 읽는 중...</div>}
+        {receiptFile && !reading && <div style={{ fontSize: 12 }}>첨부 예정: {receiptFile.name}</div>}
+        {readNotice && <div style={{ fontSize: 12, color: 'darkorange' }}>{readNotice}</div>}
+      </div>
       <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 8, maxWidth: 400 }}>
         <label>
           지출 날짜 <input type="date" name="date" value={form.date} onChange={handleChange} required />
