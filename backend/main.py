@@ -404,7 +404,7 @@ def get_expense(expense_id: int):
 
 
 # 수정할 수 있는 칸과 기록에 쓸 이름
-EDITABLE_FIELDS = {"date": "날짜", "amount": "금액", "event_name": "사업명", "category": "비목",
+EDITABLE_FIELDS = {"date": "날짜", "amount": "금액", "event_name": "사업명", "category": "지출 항목",
                    "description": "지출 내용", "has_receipt": "증빙"}
 
 
@@ -790,14 +790,14 @@ def budget_names():
 def create_budget(budget: BudgetIn):
     event_name, category = budget.event_name.strip(), budget.category.strip()
     if not event_name or not category:
-        raise HTTPException(status_code=400, detail="사업명과 비목을 입력하세요.")
+        raise HTTPException(status_code=400, detail="사업명과 지출 항목을 입력하세요.")
     if budget.amount < 0:
         raise HTTPException(status_code=400, detail="예산액은 0 이상이어야 합니다.")
     with get_conn() as conn:
         get_period(conn, budget.period_id)
         if conn.execute("SELECT 1 FROM budgets WHERE period_id = ? AND event_name = ? AND category = ?",
                         (budget.period_id, event_name, category)).fetchone():
-            raise HTTPException(status_code=400, detail="이 기간에 같은 사업명·비목의 예산이 이미 있습니다. 기존 줄의 금액을 고쳐 주세요.")
+            raise HTTPException(status_code=400, detail="이 기간에 같은 사업명·지출 항목의 예산이 이미 있습니다. 기존 줄의 금액을 고쳐 주세요.")
         conn.execute(
             "INSERT INTO budgets (org_id, period_id, event_name, category, amount, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (DEFAULT_ORG_ID, budget.period_id, event_name, category, budget.amount, budget.memo.strip(),

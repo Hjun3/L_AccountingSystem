@@ -31,7 +31,7 @@ function UnregisteredRow({ tx, onRegistered }) {
   return (
     <>
       <td><input list="event-names" placeholder="사업명" value={form.event_name} onChange={set('event_name')} style={{ width: 110 }} /></td>
-      <td><input list="categories" placeholder="비목" value={form.category} onChange={set('category')} style={{ width: 70 }} /></td>
+      <td><input list="categories" placeholder="지출 항목" value={form.category} onChange={set('category')} style={{ width: 70 }} /></td>
       <td><input value={form.description} onChange={set('description')} style={{ width: 180 }} /></td>
       <td style={{ textAlign: 'center' }}><input type="checkbox" checked={form.has_receipt} onChange={set('has_receipt')} /></td>
       <td>
@@ -125,7 +125,7 @@ function BankImportPage() {
             <thead>
               <tr>
                 <th>거래일시</th><th>금액</th><th>통장 내용</th><th>상태</th>
-                <th>사업명</th><th>비목</th><th>지출 내용</th><th>증빙</th><th></th>
+                <th>사업명</th><th>항목</th><th>지출 내용</th><th>증빙</th><th></th>
               </tr>
             </thead>
             <tbody>

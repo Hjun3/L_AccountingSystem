@@ -61,7 +61,7 @@ function ExpenseListPage() {
           <thead>
             <tr>
               <th>날짜</th>
-              <th>사업 · 비목</th>
+              <th>사업 · 항목</th>
               <th>내용</th>
               <th className="num">금액</th>
               <th>증빙</th>

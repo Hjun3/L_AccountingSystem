@@ -139,7 +139,7 @@ function NewTermForm({ terms, currentTerm, onCreated }) {
       <input type="number" value={year} onChange={(e) => setYear(e.target.value)} style={{ width: 80 }} />년
       {currentTerm && (
         <label>
-          <input type="checkbox" checked={copy} onChange={(e) => setCopy(e.target.checked)} /> {currentTerm.name} 예산(사업·비목·금액) 복사
+          <input type="checkbox" checked={copy} onChange={(e) => setCopy(e.target.checked)} /> {currentTerm.name} 예산(사업·지출 항목·금액) 복사
         </label>
       )}
       <button type="submit">만들기</button>
@@ -250,13 +250,13 @@ function BudgetPage() {
 
       <form onSubmit={addBudget} style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 }}>
         <input list="event-names" placeholder="사업명 (예: 개강총회)" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required />
-        <input list="categories" placeholder="비목 (예: 급량비)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required />
+        <input list="categories" placeholder="지출 항목 (예: 급량비)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required />
         <input type="number" min="0" placeholder="예산액" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
         <button type="submit">{period.name} 예산 추가</button>
       </form>
 
       {Object.keys(groups).length === 0 && (
-        <p style={{ color: 'gray' }}>{period.name}에 등록된 예산이 없습니다. 예산계획서의 사업·비목별 금액을 위에서 추가하세요.</p>
+        <p style={{ color: 'gray' }}>{period.name}에 등록된 예산이 없습니다. 예산계획서의 사업·지출 항목별 금액을 위에서 추가하세요.</p>
       )}
 
       {Object.entries(groups).map(([eventName, list]) => (
@@ -270,7 +270,7 @@ function BudgetPage() {
           </h3>
           <table border="1" cellPadding="4" style={{ borderCollapse: 'collapse' }}>
             <thead>
-              <tr><th>비목</th><th>예산액</th><th>지출</th><th>남은 금액</th><th>집행률</th><th></th></tr>
+              <tr><th>항목</th><th>예산액</th><th>지출</th><th>남은 금액</th><th>집행률</th><th></th></tr>
             </thead>
             <tbody>
               {list.map((b) => (
@@ -285,7 +285,7 @@ function BudgetPage() {
         <>
           <h3>예산에 없는 지출</h3>
           <p style={{ fontSize: 12, color: 'gray' }}>
-            이 기간에 예산에 없는 사업명·비목으로 등록된 지출입니다. 예산을 추가하거나, 지출의 사업명·비목 오타를 확인하세요.
+            이 기간에 예산에 없는 사업명·지출 항목으로 등록된 지출입니다. 예산을 추가하거나, 지출의 사업명·지출 항목 오타를 확인하세요.
           </p>
           <ul>
             {data.unbudgeted.map((u) => (

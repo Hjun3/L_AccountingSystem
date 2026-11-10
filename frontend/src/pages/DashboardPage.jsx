@@ -217,7 +217,7 @@ function DashboardPage() {
       {/* 4. 구성: 비목별, 사업별 지출 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
         <section>
-          <h3>비목별 지출</h3>
+          <h3>항목별 지출</h3>
           <div className="card"><BarList rows={sumBy(expenses, 'category')} emptyText="지출이 없습니다." /></div>
         </section>
         <section>
