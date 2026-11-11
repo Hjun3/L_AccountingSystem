@@ -30,28 +30,32 @@ function BudgetRow({ budget, onChanged, setError }) {
 
   return (
     <tr>
-      <td>{budget.category}</td>
-      <td>
-        <input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} style={{ width: 100 }} />
-        {changed && <button onClick={save}>저장</button>}
+      <td style={{ paddingLeft: 28, color: 'var(--sub)' }}>{budget.category}</td>
+      <td className="num">
+        {changed && <button onClick={save} style={{ height: 26, fontSize: 12, marginRight: 4 }}>저장</button>}
+        <input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))} style={{ width: 110, height: 28, textAlign: 'right' }} />
       </td>
-      <td style={{ textAlign: 'right' }}>{won(budget.spent)}</td>
-      <td style={{ textAlign: 'right', color: over ? 'red' : 'inherit', fontWeight: over ? 'bold' : 'normal' }}>
-        {won(budget.remaining)}
-      </td>
-      <td>
-        {/* 집행률 막대: 100%를 넘으면 빨간색 */}
-        <div style={{ width: 100, height: 10, background: '#eee', display: 'inline-block', marginRight: 4 }}>
-          <div style={{ width: `${Math.min(rate ?? 0, 100)}%`, height: '100%', background: over ? 'red' : 'steelblue' }} />
-        </div>
-        {rate === null ? '-' : `${rate}%`}
-      </td>
-      <td><button onClick={remove} style={{ fontSize: 11 }}>삭제</button></td>
+      <td className="num">{budget.spent.toLocaleString()}</td>
+      <td className="num" style={{ color: over ? 'var(--bad)' : 'inherit', fontWeight: over ? 700 : 400 }}>{budget.remaining.toLocaleString()}</td>
+      <td><RateBar rate={rate} over={over} /></td>
+      <td style={{ textAlign: 'right' }}><button onClick={remove} style={{ height: 26, fontSize: 12, color: 'var(--bad)' }}>삭제</button></td>
     </tr>
   )
 }
 
-// 기간(학기 전/1학기/2학기)의 시작일·종료일 고치기
+// 집행률 막대 + 퍼센트. 100%를 넘으면 빨강
+function RateBar({ rate, over, width = 90 }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+      <span style={{ width, height: 6, background: 'var(--line)', borderRadius: 3, display: 'inline-block' }}>
+        <span style={{ display: 'block', width: `${Math.min(rate ?? 0, 100)}%`, height: '100%', borderRadius: 3, background: over ? 'var(--bad)' : 'var(--primary)' }} />
+      </span>
+      <span className="tnum" style={{ color: over ? 'var(--bad)' : 'var(--sub)', fontSize: 12 }}>{rate === null ? '-' : `${rate}%`}</span>
+    </span>
+  )
+}
+
+// 기간(학기 전/1학기/여름방학/2학기)의 시작일·종료일 고치기
 function PeriodDates({ period, onSaved, setError }) {
   const [dates, setDates] = useState({ start_date: period.start_date, end_date: period.end_date })
   const changed = dates.start_date !== period.start_date || dates.end_date !== period.end_date
@@ -66,47 +70,50 @@ function PeriodDates({ period, onSaved, setError }) {
   }
 
   return (
-    <span>
-      기간 <input type="date" value={dates.start_date} onChange={(e) => setDates({ ...dates, start_date: e.target.value })} /> ~{' '}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} title="이 날짜 안의 지출이 이 기간으로 계산됩니다">
+      <span className="muted">기간</span>
+      <input type="date" value={dates.start_date} onChange={(e) => setDates({ ...dates, start_date: e.target.value })} />
+      <span className="muted">~</span>
       <input type="date" value={dates.end_date} onChange={(e) => setDates({ ...dates, end_date: e.target.value })} />
-      {changed && <button onClick={save}>기간 저장</button>}
-      <span style={{ fontSize: 12, color: 'gray' }}> (이 날짜 안의 지출이 이 기간으로 계산됩니다)</span>
+      {changed && <button type="submit" onClick={save}>기간 저장</button>}
     </span>
   )
 }
 
 // 사업 x 월 지출 표. monthly: [{event_name, month, total}]
 function MonthlyTable({ monthly }) {
-  if (monthly.length === 0) return <p style={{ color: 'gray' }}>이 기간에 지출이 없습니다.</p>
+  if (monthly.length === 0) return <div className="card muted">이 기간에 지출이 없습니다.</div>
   const months = [...new Set(monthly.map((m) => m.month))].sort()
   const events = [...new Set(monthly.map((m) => m.event_name))]
   const amount = (e, m) => monthly.find((x) => x.event_name === e && x.month === m)?.total || 0
   const monthTotal = (m) => monthly.filter((x) => x.month === m).reduce((s, x) => s + x.total, 0)
 
   return (
-    <table border="1" cellPadding="4" style={{ borderCollapse: 'collapse', fontSize: 13 }}>
+    <div className="table-box">
+    <table>
       <thead>
         <tr>
           <th>사업</th>
-          {months.map((m) => <th key={m}>{Number(m.slice(5))}월</th>)}
-          <th>합계</th>
+          {months.map((m) => <th key={m} className="num">{Number(m.slice(5))}월</th>)}
+          <th className="num">합계</th>
         </tr>
       </thead>
       <tbody>
         {events.map((e) => (
           <tr key={e}>
             <td>{e}</td>
-            {months.map((m) => <td key={m} style={{ textAlign: 'right' }}>{amount(e, m) ? amount(e, m).toLocaleString() : ''}</td>)}
-            <td style={{ textAlign: 'right' }}>{months.reduce((s, m) => s + amount(e, m), 0).toLocaleString()}</td>
+            {months.map((m) => <td key={m} className="num">{amount(e, m) ? amount(e, m).toLocaleString() : ''}</td>)}
+            <td className="num" style={{ fontWeight: 600 }}>{months.reduce((s, m) => s + amount(e, m), 0).toLocaleString()}</td>
           </tr>
         ))}
-        <tr style={{ fontWeight: 'bold' }}>
+        <tr style={{ fontWeight: 700, background: '#fafbfc' }}>
           <td>월 합계</td>
-          {months.map((m) => <td key={m} style={{ textAlign: 'right' }}>{monthTotal(m).toLocaleString()}</td>)}
-          <td style={{ textAlign: 'right' }}>{monthly.reduce((s, x) => s + x.total, 0).toLocaleString()}</td>
+          {months.map((m) => <td key={m} className="num">{monthTotal(m).toLocaleString()}</td>)}
+          <td className="num">{monthly.reduce((s, x) => s + x.total, 0).toLocaleString()}</td>
         </tr>
       </tbody>
     </table>
+    </div>
   )
 }
 
@@ -134,22 +141,22 @@ function NewTermForm({ terms, currentTerm, onCreated }) {
   }
 
   return (
-    <form onSubmit={submit} style={{ border: '1px dashed gray', padding: 8, marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+    <form onSubmit={submit} className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
       <b>새 임기 만들기</b>
-      <input type="number" value={year} onChange={(e) => setYear(e.target.value)} style={{ width: 80 }} />년
+      <span><input inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ''))} style={{ width: 80 }} /> 년</span>
       {currentTerm && (
         <label>
           <input type="checkbox" checked={copy} onChange={(e) => setCopy(e.target.checked)} /> {currentTerm.name} 예산(사업·지출 항목·금액) 복사
         </label>
       )}
       <button type="submit">만들기</button>
-      <span style={{ fontSize: 12, color: 'gray' }}>다음 학생회가 쓸 때 만듭니다. 기간 3개(학기 전/1학기/2학기)가 함께 만들어집니다.</span>
-      {error && <span style={{ color: 'red' }}>{error}</span>}
+      <span className="muted">다음 학생회가 쓸 때 만듭니다. 기간 4개(학기 전/1학기/여름방학/2학기)가 함께 만들어집니다.</span>
+      {error && <span style={{ color: 'var(--bad)' }}>{error}</span>}
     </form>
   )
 }
 
-// 예산 페이지: 기간(학기 전/1학기/2학기)을 고르고, 그 기간의 사업·비목별 예산 대비 지출과 월별 지출을 본다
+// 예산 페이지: 기간(학기 전/1학기/여름방학/2학기)을 고르고, 그 기간의 사업·지출 항목별 예산 대비 지출과 월별 지출을 본다
 function BudgetPage() {
   const [periods, setPeriods] = useState([])
   const [periodId, setPeriodId] = useState(null)
@@ -202,7 +209,7 @@ function BudgetPage() {
     setError('')
     try {
       setData(await api('/budgets', { method: 'POST', body: JSON.stringify({ ...form, period_id: periodId, amount: Number(form.amount) }) }))
-      setForm({ ...form, category: '', amount: '' }) // 같은 사업의 다른 비목을 이어서 넣기 쉽게 사업명은 남긴다
+      setForm({ ...form, category: '', amount: '' }) // 같은 사업의 다른 지출 항목을 이어서 넣기 쉽게 사업명은 남긴다
     } catch (e) {
       setError(e.message)
     }
@@ -217,93 +224,123 @@ function BudgetPage() {
   const sum = (list, key) => list.reduce((s, b) => s + b[key], 0)
   const total = { amount: sum(data.budgets, 'amount'), spent: sum(data.budgets, 'spent') }
 
+  const remainingTotal = total.amount - total.spent
+  const totalRate = total.amount > 0 ? Math.round((total.spent / total.amount) * 100) : null
+
   return (
     <div>
-      <h2>예산 ({term.name})</h2>
-      {termId === null && <p style={{ fontSize: 12, color: 'gray' }}>'전체 임기'를 고른 상태라 가장 최근 임기({term.name}) 예산을 보여줍니다.</p>}
+      <h2>예산·결산 <span className="muted" style={{ fontSize: 15, fontWeight: 500 }}>{term.name}</span></h2>
+      {termId === null && <p className="muted">'전체 임기'를 고른 상태라 가장 최근 임기({term.name}) 예산을 보여줍니다.</p>}
 
-      {/* 기간 탭 */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-        {periods.map((p) => (
-          <button key={p.id} onClick={() => setPeriodId(p.id)} className={p.id === periodId ? 'active' : ''}>
-            {p.name}
-          </button>
-        ))}
-      </div>
-      <PeriodDates key={period.id + period.start_date + period.end_date} period={period} onSaved={() => { loadPeriods(); reloadTerms(termId) }} setError={setError} />
-
-      <p>
-        <b>{period.name}</b> 총예산 <b>{won(total.amount)}</b> · 지출 <b>{won(total.spent)}</b> · 남은 금액{' '}
-        <b style={{ color: total.amount - total.spent < 0 ? 'red' : 'inherit' }}>{won(total.amount - total.spent)}</b>
-      </p>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-
-      <div style={{ border: '1px dashed gray', padding: 8, marginBottom: 12 }}>
-        <b>결산보고서</b>{' '}
-        {/* 서버가 만든 엑셀 파일을 바로 내려받는 링크 */}
-        <a href={`${API_URL}/reports/settlement.xlsx?period_id=${period.id}`} download>
-          {period.name} 결산보고서 엑셀로 내려받기
-        </a>
-        <span style={{ fontSize: 12, color: 'gray' }}> (사업별 결산, 비목별 집계, 지출 내역 시트)</span>
-      </div>
-
-      <form onSubmit={addBudget} style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 }}>
-        <SuggestInput list="event-names" placeholder="사업명 (예: 개강총회)" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required />
-        <SuggestInput list="categories" placeholder="지출 항목 (예: 급량비)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required />
-        <input type="number" min="0" placeholder="예산액" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
-        <button type="submit">{period.name} 예산 추가</button>
-      </form>
-
-      {Object.keys(groups).length === 0 && (
-        <p style={{ color: 'gray' }}>{period.name}에 등록된 예산이 없습니다. 예산계획서의 사업·지출 항목별 금액을 위에서 추가하세요.</p>
-      )}
-
-      {Object.entries(groups).map(([eventName, list]) => (
-        <div key={eventName} style={{ marginBottom: 16 }}>
-          <h3 style={{ marginBottom: 4 }}>
-            {eventName}{' '}
-            <span style={{ fontSize: 14, fontWeight: 'normal' }}>
-              (예산 {won(sum(list, 'amount'))} / 지출 {won(sum(list, 'spent'))} / 남음{' '}
-              <span style={{ color: sum(list, 'remaining') < 0 ? 'red' : 'inherit' }}>{won(sum(list, 'remaining'))}</span>)
-            </span>
-          </h3>
-          <table border="1" cellPadding="4" style={{ borderCollapse: 'collapse' }}>
-            <thead>
-              <tr><th>항목</th><th>예산액</th><th>지출</th><th>남은 금액</th><th>집행률</th><th></th></tr>
-            </thead>
-            <tbody>
-              {list.map((b) => (
-                <BudgetRow key={b.id + ':' + b.amount} budget={b} onChanged={setData} setError={setError} />
-              ))}
-            </tbody>
-          </table>
+      {/* 기간 탭 + 기간 날짜 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {periods.map((p) => (
+            <button key={p.id} onClick={() => setPeriodId(p.id)} className={p.id === periodId ? 'active' : ''}>
+              {p.name}
+            </button>
+          ))}
         </div>
-      ))}
+        <PeriodDates key={period.id + period.start_date + period.end_date} period={period} onSaved={() => { loadPeriods(); reloadTerms(termId) }} setError={setError} />
+      </div>
+      {error && <p style={{ color: 'var(--bad)' }}>{error}</p>}
 
-      {data.unbudgeted.length > 0 && (
-        <>
-          <h3>예산에 없는 지출</h3>
-          <p style={{ fontSize: 12, color: 'gray' }}>
-            이 기간에 예산에 없는 사업명·지출 항목으로 등록된 지출입니다. 예산을 추가하거나, 지출의 사업명·지출 항목 오타를 확인하세요.
-          </p>
-          <ul>
-            {data.unbudgeted.map((u) => (
-              <li key={u.event_name + u.category}>
-                {u.event_name} - {u.category}: {won(u.spent)}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      {/* 기간 요약 */}
+      <div className="card tnum" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, alignItems: 'end' }}>
+        {[
+          { label: `${period.name} 총예산`, value: won(total.amount) },
+          { label: '지출', value: won(total.spent) },
+          { label: '남은 금액', value: won(remainingTotal), color: remainingTotal < 0 ? 'var(--bad)' : undefined },
+        ].map((it) => (
+          <div key={it.label}>
+            <div className="muted">{it.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: it.color }}>{it.value}</div>
+          </div>
+        ))}
+        <div>
+          <div className="muted">집행률</div>
+          <RateBar rate={totalRate} over={total.spent > total.amount} width={140} />
+        </div>
+      </div>
+
+      {/* 가운데: 왼쪽 예산 표, 오른쪽 예산 추가·예산에 없는 지출 */}
+      <div className="budget-main">
+        <section>
+          <h3 style={{ marginTop: 0 }}>사업별 예산</h3>
+          {Object.keys(groups).length === 0 ? (
+            <div className="card muted">{period.name}에 등록된 예산이 없습니다. 예산계획서의 사업·지출 항목별 금액을 오른쪽에서 추가하세요.</div>
+          ) : (
+            <div className="table-box">
+              <table>
+                <thead>
+                  <tr><th>사업 · 항목</th><th className="num">예산액</th><th className="num">지출</th><th className="num">남은 금액</th><th>집행률</th><th></th></tr>
+                </thead>
+                {Object.entries(groups).map(([eventName, list]) => {
+                  const b = sum(list, 'amount'), sp = sum(list, 'spent')
+                  return (
+                    <tbody key={eventName}>
+                      {/* 사업 줄: 소계 */}
+                      <tr style={{ background: '#fafbfc', fontWeight: 600 }}>
+                        <td>{eventName}</td>
+                        <td className="num">{b.toLocaleString()}</td>
+                        <td className="num">{sp.toLocaleString()}</td>
+                        <td className="num" style={{ color: b - sp < 0 ? 'var(--bad)' : 'inherit' }}>{(b - sp).toLocaleString()}</td>
+                        <td><RateBar rate={b > 0 ? Math.round((sp / b) * 100) : null} over={sp > b} /></td>
+                        <td />
+                      </tr>
+                      {list.map((x) => (
+                        <BudgetRow key={x.id + ':' + x.amount} budget={x} onChanged={setData} setError={setError} />
+                      ))}
+                    </tbody>
+                  )
+                })}
+              </table>
+            </div>
+          )}
+        </section>
+
+        <aside style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+          <form onSubmit={addBudget} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
+            <b>{period.name} 예산 추가</b>
+            <label>사업명 <SuggestInput list="event-names" placeholder="예: 개강총회" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required /></label>
+            <label>지출 항목 <SuggestInput list="categories" placeholder="예: 급량비" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required /></label>
+            <label>예산액(원) <input inputMode="numeric" placeholder="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9]/g, '') })} required /></label>
+            <button type="submit">추가</button>
+          </form>
+
+          <section className="card" style={{ marginBottom: 0 }}>
+            <b>예산에 없는 지출</b> <span className="muted">{data.unbudgeted.length}건</span>
+            <p className="muted" style={{ marginTop: 2 }}>예산에 없는 사업명·지출 항목으로 등록된 지출이에요. 예산을 추가하거나 이름 오타를 확인하세요.</p>
+            {data.unbudgeted.length === 0 ? (
+              <p className="muted">없습니다.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+                {data.unbudgeted.map((u) => (
+                  <div key={u.event_name + u.category} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
+                    <span>{u.event_name} · <span className="muted">{u.category}</span></span>
+                    <span className="tnum" style={{ fontWeight: 600 }}>{won(u.spent)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </aside>
+      </div>
 
       <h3>월별 지출</h3>
       <MonthlyTable monthly={data.monthly} />
 
-      {isAdmin(user) && (
-        <div style={{ marginTop: 32 }}>
-          <NewTermForm terms={terms} currentTerm={term} onCreated={(id) => reloadTerms(id)} />
+      {/* 결산보고서 */}
+      <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 24 }}>
+        <div>
+          <b>{period.name} 결산보고서</b>
+          <div className="muted">엑셀 파일: 사업별 결산, 비목별 집계, 지출 내역 시트</div>
         </div>
-      )}
+        {/* 서버가 만든 엑셀 파일을 바로 내려받는 링크 */}
+        <a className="btn primary" href={`${API_URL}/reports/settlement.xlsx?period_id=${period.id}`} download>엑셀 내려받기</a>
+      </div>
+
+      {isAdmin(user) && <NewTermForm terms={terms} currentTerm={term} onCreated={(id) => reloadTerms(id)} />}
     </div>
   )
 }
