@@ -527,8 +527,8 @@ def list_logs():
 
 @app.get("/me/activity")
 def my_activity():
-    """내 정보 화면용: 내가 한 기록만 최근 10개. 기록의 '한 사람'은 '이름(아이디)'로 남으므로 아이디로 찾는다."""
-    return collect_logs(actor_username=current_user.get()["username"])[:10]
+    """내 정보 화면용: 내가 한 기록만 최근 50개 (화면에서 5개씩 나눠 봄). 기록의 '한 사람'은 '이름(아이디)'로 남으므로 아이디로 찾는다."""
+    return collect_logs(actor_username=current_user.get()["username"])[:50]
 
 
 def collect_logs(actor_username=None):

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, isAdmin, useUser } from '../common'
+import Pager, { paginate } from '../components/Pager'
 import PasswordPage from './PasswordPage'
 
 // 역할별로 할 수 있는 일 (사용자 관리 화면과 같은 설명)
@@ -33,6 +34,7 @@ function Row({ label, children, action }) {
 }
 
 const SECTIONS = [['profile', '프로필'], ['security', '보안'], ['sessions', '로그인된 곳'], ['activity', '최근 활동']]
+const PAGE_SIZE = 5 // 로그인된 곳·최근 활동을 한 쪽에 몇 개씩
 
 // 내 정보 화면: 프로필(이름 바꾸기), 보안(비밀번호), 로그인된 곳(다른 기기 로그아웃), 최근 활동
 function AccountPage({ onUserChanged }) {
@@ -44,6 +46,29 @@ function AccountPage({ onUserChanged }) {
   const [activity, setActivity] = useState(null)
   const [message, setMessage] = useState('') // 잘 됐을 때 안내
   const [error, setError] = useState('')
+  const [sessionPage, setSessionPage] = useState(1)
+  const [activityPage, setActivityPage] = useState(1)
+  const [current, setCurrent] = useState('profile') // 지금 화면에 보이는 구역 (왼쪽 목차에 표시)
+
+  // 화면을 내릴 때 지금 보고 있는 구역을 찾는다: 화면 맨 위에서 100px 선을 지나간 구역 중 마지막 것
+  // (목차를 누르면 그 구역이 화면 맨 위로 오므로, 짧은 구역도 정확히 잡힌다)
+  useEffect(() => {
+    function onScroll() {
+      const line = 100
+      let found = SECTIONS[0][0]
+      for (const [id] of SECTIONS) {
+        const el = document.getElementById(id)
+        if (el && el.getBoundingClientRect().top <= line) found = id
+      }
+      // 실제로 내려서 맨 아래에 닿으면 마지막 구역 (마지막 구역이 짧아 위까지 못 올라오는 경우)
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2
+      if (window.scrollY > 0 && atBottom) found = SECTIONS[SECTIONS.length - 1][0]
+      setCurrent(found)
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   function loadSessions() {
     api('/auth/sessions').then(setSessions).catch((e) => setError(e.message))
@@ -91,30 +116,31 @@ function AccountPage({ onUserChanged }) {
   }
 
   const others = sessions.filter((s) => !s.current)
+  const sessionView = paginate(sessions, sessionPage, PAGE_SIZE)
+  const activityView = paginate(activity || [], activityPage, PAGE_SIZE)
   const go = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   return (
-    <div style={{ maxWidth: 1000 }}>
-      {/* 머리: 이름 첫 글자 동그라미 + 이름·아이디·역할 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <div className="avatar">{user.display_name.slice(0, 1)}</div>
-        <div>
-          <h2 style={{ margin: 0 }}>{user.display_name}</h2>
-          <div className="muted" style={{ fontSize: 13 }}>
-            {user.username} · <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{user.role_label}</span>
-          </div>
-        </div>
-      </div>
+    <div style={{ maxWidth: 1100 }}>
+      <h2>내 정보</h2>
       {error && <p className="notice" style={{ color: 'var(--bad)' }}>{error}</p>}
       {message && <p className="notice" style={{ color: 'var(--ok)' }}>{message}</p>}
 
       <div className="account-main">
-        {/* 왼쪽: 구역 목차 */}
-        <nav className="account-nav">
-          {SECTIONS.map(([id, label]) => (
-            <button key={id} type="button" onClick={() => go(id)}>{label}</button>
-          ))}
-        </nav>
+        {/* 왼쪽 (화면을 내려도 따라옴): 프로필 요약 + 구역 목차. 지금 보고 있는 구역은 강조 */}
+        <aside className="account-side">
+          <div className="card" style={{ marginBottom: 0, textAlign: 'center', padding: '24px 16px' }}>
+            <div className="avatar" style={{ margin: '0 auto 10px', width: 64, height: 64, fontSize: 28 }}>{user.display_name.slice(0, 1)}</div>
+            <b style={{ fontSize: 17 }}>{user.display_name}</b>
+            <div className="muted">{user.username}</div>
+            <span className="role-chip">{user.role_label}</span>
+          </div>
+          <nav className="account-nav card">
+            {SECTIONS.map(([id, label]) => (
+              <button key={id} type="button" onClick={() => go(id)} className={current === id ? 'on' : ''}>{label}</button>
+            ))}
+          </nav>
+        </aside>
 
         <div style={{ display: 'grid', gap: 20, minWidth: 0 }}>
           {/* 프로필 */}
@@ -166,7 +192,7 @@ function AccountPage({ onUserChanged }) {
               <button onClick={logoutOthers} disabled={others.length === 0}>다른 기기 모두 로그아웃</button>
             </div>
             <p className="muted" style={{ marginTop: 0 }}>모르는 기기가 있거나 공용 컴퓨터에서 로그아웃을 깜빡했다면 여기서 끊으세요. 로그인은 7일 동안 유지돼요.</p>
-            {sessions.map((s) => (
+            {sessionView.rows.map((s) => (
               <div key={s.id} className="account-row">
                 <div className="session-icon">{/iPhone|Android|iPad/.test(s.device) ? '📱' : '💻'}</div>
                 <div style={{ minWidth: 0 }}>
@@ -177,12 +203,13 @@ function AccountPage({ onUserChanged }) {
                 <div>{!s.current && <button onClick={() => logoutOne(s)}>로그아웃</button>}</div>
               </div>
             ))}
+            <Pager page={sessionView.current} count={sessionView.count} onChange={setSessionPage} />
           </section>
 
           {/* 최근 활동 */}
           <section id="activity" className="card account-section">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <h3>최근 활동</h3>
+              <h3>최근 활동 {activity?.length > 0 && <span className="muted" style={{ fontWeight: 400 }}>최근 {activity.length}개</span>}</h3>
               {isAdmin(user) && <Link to="/logs" className="muted">전체 기록</Link>}
             </div>
             {activity === null ? (
@@ -191,7 +218,7 @@ function AccountPage({ onUserChanged }) {
               <p className="muted">아직 남긴 기록이 없어요. 지출 등록·수정·확정을 하면 여기에 보여요.</p>
             ) : (
               <ol className="timeline">
-                {activity.map((a, i) => (
+                {activityView.rows.map((a, i) => (
                   <li key={i}>
                     <div className="muted tnum">{a.created_at.replace('T', ' ').slice(0, 16)}</div>
                     <div>
@@ -207,6 +234,7 @@ function AccountPage({ onUserChanged }) {
                 ))}
               </ol>
             )}
+            <Pager page={activityView.current} count={activityView.count} onChange={setActivityPage} />
           </section>
         </div>
       </div>

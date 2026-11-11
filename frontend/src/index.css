@@ -220,10 +220,13 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 @media (max-width: 900px) { .regulation-main { grid-template-columns: minmax(0, 1fr); } .regulation-toc { position: static; max-height: 240px; } }
 
 /* 내 정보: 왼쪽 구역 목차, 오른쪽 구역 카드. 각 줄은 '항목 | 값 | 버튼' */
-.account-main { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 24px; align-items: start; }
-.account-nav { position: sticky; top: 16px; display: grid; gap: 2px; }
-.account-nav button { all: unset; cursor: pointer; padding: 8px 10px; border-radius: var(--r-sm); font-size: 14px; color: var(--sub); }
-.account-nav button:hover { background: #eceef1; color: var(--text); }
+.account-main { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
+.account-side { position: sticky; top: 16px; display: grid; gap: 12px; }
+.account-nav { display: grid; gap: 2px; padding: 8px; margin-bottom: 0; }
+.account-nav button { all: unset; cursor: pointer; padding: 9px 12px; border-radius: var(--r-sm); font-size: 14px; color: var(--sub); }
+.account-nav button:hover { background: #f2f4f6; color: var(--text); }
+.account-nav button.on { background: var(--primary-soft); color: var(--primary); font-weight: 600; }  /* 지금 보고 있는 구역 */
+.role-chip { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--primary); background: var(--primary-soft); padding: 3px 10px; border-radius: 12px; }
 .account-section { margin-bottom: 0; padding: 20px 24px; scroll-margin-top: 16px; }
 .account-section h3 { margin: 0 0 8px; }
 .account-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
@@ -237,7 +240,8 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .timeline li:first-child { border-top: none; }
 @media (max-width: 760px) {
   .account-main { grid-template-columns: minmax(0, 1fr); }
-  .account-nav { position: static; display: flex; flex-wrap: wrap; }
+  .account-side { position: static; }
+  .account-nav { display: flex; flex-wrap: wrap; }
   .account-row { grid-template-columns: minmax(0, 1fr) auto; }
   .account-row > :first-child { grid-column: 1 / -1; }
   .timeline li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
