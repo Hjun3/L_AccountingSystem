@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, STATUS_COLORS } from '../common'
-import NameSuggestions from '../components/NameSuggestions'
+import Pager, { paginate } from '../components/Pager'
+import SuggestInput from '../components/SuggestInput'
 
 // 아직 등록되지 않은 출금 1건: 총무가 사업명과 지출 항목을 채운 뒤 'AI 점검 후 등록'을 누른다
 function UnregisteredRow({ tx, onRegistered }) {
@@ -30,8 +31,8 @@ function UnregisteredRow({ tx, onRegistered }) {
 
   return (
     <>
-      <td><input list="event-names" placeholder="사업명" value={form.event_name} onChange={set('event_name')} style={{ width: 110 }} /></td>
-      <td><input list="categories" placeholder="항목" value={form.category} onChange={set('category')} style={{ width: 90 }} /></td>
+      <td><SuggestInput list="event-names" placeholder="사업명" value={form.event_name} onChange={set('event_name')} style={{ width: 110 }} /></td>
+      <td><SuggestInput list="categories" placeholder="항목" value={form.category} onChange={set('category')} style={{ width: 90 }} /></td>
       <td><input value={form.description} onChange={set('description')} style={{ width: 180 }} /></td>
       <td style={{ textAlign: 'center' }}><input type="checkbox" title="증빙 있음" checked={form.has_receipt} onChange={set('has_receipt')} /></td>
       <td>
@@ -51,6 +52,7 @@ function BankImportPage() {
   const [password, setPassword] = useState('') // 파일 비밀번호: 서버에 저장하지 않고 파일을 풀 때만 씀
   const [dragging, setDragging] = useState(false) // 파일을 끌어다 올려 놓는 중인지
   const [onlyUnregistered, setOnlyUnregistered] = useState(true) // 표에서 미등록만 볼지
+  const [page, setPage] = useState(1) // 통장 출금 표의 쪽 번호 (한 쪽 10건)
 
   async function readFile(target, pw) {
     setError('')
@@ -60,6 +62,7 @@ function BankImportPage() {
       body.append('file', target)
       body.append('password', pw)
       setResult(await api('/bank/import', { method: 'POST', body }))
+      setPage(1)
     } catch (e) {
       setResult(null)
       setError(e.message)
@@ -84,12 +87,12 @@ function BankImportPage() {
 
   const unregisteredCount = result ? result.transactions.filter((t) => !t.matched_expense_id).length : 0
 
-  const rows = result ? result.transactions.map((tx, i) => ({ tx, i })).filter(({ tx }) => !onlyUnregistered || !tx.matched_expense_id) : []
+  const allRows = result ? result.transactions.map((tx, i) => ({ tx, i })).filter(({ tx }) => !onlyUnregistered || !tx.matched_expense_id) : []
+  const { rows, count: pageCount, current } = paginate(allRows, page, 10)
 
   return (
     <div>
       <h2>거래내역 불러오기</h2>
-      <NameSuggestions />
 
       {/* 위쪽: 왼쪽 파일 올리기, 오른쪽 안내 (아래 결과 표와 폭을 맞춤) */}
       <div className="new-expense" style={{ maxWidth: 'none' }}>
@@ -169,8 +172,8 @@ function BankImportPage() {
           <div className="section-title">
             <h3>통장 출금</h3>
             <div style={{ display: 'flex', gap: 4 }}>
-              <button className={onlyUnregistered ? 'active' : ''} onClick={() => setOnlyUnregistered(true)}>미등록 {unregisteredCount}</button>
-              <button className={!onlyUnregistered ? 'active' : ''} onClick={() => setOnlyUnregistered(false)}>전체 {result.transactions.length}</button>
+              <button className={onlyUnregistered ? 'active' : ''} onClick={() => { setOnlyUnregistered(true); setPage(1) }}>미등록 {unregisteredCount}</button>
+              <button className={!onlyUnregistered ? 'active' : ''} onClick={() => { setOnlyUnregistered(false); setPage(1) }}>전체 {result.transactions.length}</button>
             </div>
           </div>
           <div className="table-box">
@@ -204,6 +207,7 @@ function BankImportPage() {
             </table>
             {rows.length === 0 && <p className="muted" style={{ padding: 16 }}>미등록 출금이 없습니다. 모두 지출로 등록되어 있어요.</p>}
           </div>
+          <Pager page={current} count={pageCount} onChange={setPage} />
 
           <div className="section-title">
             <h3>통장에 출금이 없는 지출 <span className="muted" style={{ fontWeight: 400 }}>{result.unmatched_expenses.length}건</span></h3>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, API_URL, isAdmin, useTerm, useUser } from '../common'
-import NameSuggestions from '../components/NameSuggestions'
+import SuggestInput from '../components/SuggestInput'
 
 const won = (n) => `${n.toLocaleString()}원`
 
@@ -221,7 +221,6 @@ function BudgetPage() {
     <div>
       <h2>예산 ({term.name})</h2>
       {termId === null && <p style={{ fontSize: 12, color: 'gray' }}>'전체 임기'를 고른 상태라 가장 최근 임기({term.name}) 예산을 보여줍니다.</p>}
-      <NameSuggestions />
 
       {/* 기간 탭 */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
@@ -249,8 +248,8 @@ function BudgetPage() {
       </div>
 
       <form onSubmit={addBudget} style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 }}>
-        <input list="event-names" placeholder="사업명 (예: 개강총회)" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required />
-        <input list="categories" placeholder="지출 항목 (예: 급량비)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required />
+        <SuggestInput list="event-names" placeholder="사업명 (예: 개강총회)" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required />
+        <SuggestInput list="categories" placeholder="지출 항목 (예: 급량비)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required />
         <input type="number" min="0" placeholder="예산액" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
         <button type="submit">{period.name} 예산 추가</button>
       </form>

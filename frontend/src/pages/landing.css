@@ -9,7 +9,8 @@
 /* 상단 바 */
 .lp-top { position: sticky; top: 0; z-index: 10; background: rgba(255, 255, 255, 0.96); border-bottom: 1px solid var(--line); }
 .lp-top .lp-wrap { display: flex; align-items: center; height: 60px; gap: 20px; }
-.lp-logo { font-weight: 800; font-size: 17px; letter-spacing: -0.03em; }
+.lp-logo { font-weight: 800; font-size: 20px; letter-spacing: -0.03em; color: var(--text, #191f28); text-decoration: none; }
+.lp-logo:hover { text-decoration: none; opacity: 0.8; }
 .lp-logo span { color: var(--primary); }
 .lp-top nav { display: flex; gap: 20px; margin-left: 24px; font-size: 14px; }
 .lp-top nav a { color: var(--sub); }

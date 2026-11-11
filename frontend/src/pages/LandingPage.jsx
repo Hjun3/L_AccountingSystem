@@ -296,7 +296,8 @@ function LandingPage({ onLogin, user, onGo }) {
     <div className="lp">
       <header className="lp-top">
         <div className="lp-wrap">
-          <div className="lp-logo">짝<span>장부</span></div>
+          {/* 로고: 누르면 소개 페이지 맨 처음으로 */}
+          <a className="lp-logo" href="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>짝<span>장부</span></a>
           <nav>
             {TOP_MENU.map(([m, path]) => (
               <button key={m} className="lp-navbtn" onClick={() => (loggedIn ? onGo(path) : setNotice(m))}>{m}</button>
@@ -323,7 +324,7 @@ function LandingPage({ onLogin, user, onGo }) {
               지출 기록부터 증빙 정리, 예산 확인, 결산까지. 회계 규정은 AI 동료가 같이 봐 주고, 결정은 총무가 합니다.
             </p>
             <div className="lp-actions">
-              <button className="lp-btn primary" onClick={start}>{loggedIn ? '대시보드로 가기' : '시작하기'}</button>
+              <button className="lp-btn primary" onClick={start}>{loggedIn ? '대시보드로 이동' : '시작하기'}</button>
               <a className="lp-btn ghost" href="#how" onClick={go('how')}>어떻게 쓰나요</a>
             </div>
           </div>
@@ -398,7 +399,7 @@ function LandingPage({ onLogin, user, onGo }) {
       <section className="lp-end">
         <div className="lp-wrap">
           <h2>이번 학기 장부,<br />같이 정리해요</h2>
-          <button className="lp-btn primary" onClick={start}>{loggedIn ? '대시보드로 가기' : '로그인하고 시작하기'}</button>
+          <button className="lp-btn primary" onClick={start}>{loggedIn ? '대시보드로 이동' : '로그인하고 시작하기'}</button>
           {!loggedIn && <p className="muted" style={{ marginTop: 14 }}>계정은 관리자가 만들어 줍니다.</p>}
         </div>
       </section>

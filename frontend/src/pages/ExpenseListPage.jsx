@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, STATUS_LABELS, termQuery, useTerm } from '../common'
 import DecisionCell from '../components/DecisionCell'
+import Pager, { paginate } from '../components/Pager'
 import StatusBadge from '../components/StatusBadge'
 
 // 필터 버튼 목록: AI 점검 결과와 총무 결정 상태로 걸러 본다
@@ -43,9 +44,7 @@ function ExpenseListPage() {
   const shown = expenses.filter((exp) => matchesFilter(exp, filter))
 
   const sum = shown.reduce((n, exp) => n + exp.amount, 0)
-  const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
-  const current = Math.min(page, pageCount) // 확정 등으로 건수가 줄어도 없는 쪽에 머물지 않게
-  const pageRows = shown.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
+  const { rows: pageRows, count: pageCount, current } = paginate(shown, page, PAGE_SIZE)
 
   return (
     <div>
@@ -114,26 +113,7 @@ function ExpenseListPage() {
         </table>
         {shown.length === 0 && <p className="muted" style={{ padding: 16 }}>해당하는 지출이 없습니다.</p>}
       </div>
-      {pageCount > 1 && <Pager page={current} count={pageCount} onChange={(p) => { setPage(p); window.scrollTo(0, 0) }} />}
-    </div>
-  )
-}
-
-// 페이지 번호: 5개씩 묶어 보여 준다. « » 5쪽 이동, ‹ › 1쪽 이동
-function Pager({ page, count, onChange }) {
-  const go = (p) => onChange(Math.min(count, Math.max(1, p)))
-  const first = Math.floor((page - 1) / 5) * 5 + 1 // 지금 묶음의 첫 번호 (1, 6, 11 ...)
-  const numbers = Array.from({ length: Math.min(5, count - first + 1) }, (_, i) => first + i)
-  const arrow = { width: 32, padding: 0 }
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 16 }}>
-      <button style={arrow} onClick={() => go(page - 5)} disabled={page === 1} title="5쪽 앞으로">«</button>
-      <button style={arrow} onClick={() => go(page - 1)} disabled={page === 1} title="이전 쪽">‹</button>
-      {numbers.map((n) => (
-        <button key={n} onClick={() => go(n)} className={n === page ? 'active' : ''} style={{ minWidth: 32, padding: '0 8px' }}>{n}</button>
-      ))}
-      <button style={arrow} onClick={() => go(page + 1)} disabled={page === count} title="다음 쪽">›</button>
-      <button style={arrow} onClick={() => go(page + 5)} disabled={page === count} title="5쪽 뒤로">»</button>
+      <Pager page={current} count={pageCount} onChange={(p) => { setPage(p); window.scrollTo(0, 0) }} />
     </div>
   )
 }

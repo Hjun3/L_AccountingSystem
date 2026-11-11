@@ -1,0 +1,87 @@
+import { useEffect, useState } from 'react'
+import { api, CATEGORIES } from '../common'
+
+// 사업명·지출 항목 입력칸 (자동완성 목록이 붙은 입력칸)
+// 브라우저 기본 자동완성(datalist)은 ▼ 모양과 목록 모양을 바꿀 수 없어서 직접 만들었다.
+// - list="event-names": 예산에 등록된 사업명 / list="categories": 기본 지출 항목
+// - 입력하면 그 글자가 들어간 것만 보여 주고, 위아래 키·Enter로도 고를 수 있다.
+// 사용법은 보통 input과 같다: <SuggestInput list="categories" value={...} onChange={...} />
+
+let eventNamesRequest = null // 사업명 목록은 한 번만 불러와서 모든 입력칸이 같이 쓴다
+function loadEventNames() {
+  eventNamesRequest ||= api('/budgets/names').catch(() => {
+    eventNamesRequest = null // 실패하면 다음에 다시 시도 (자동완성은 없어도 입력은 됨)
+    return []
+  })
+  return eventNamesRequest
+}
+
+function SuggestInput({ list, value, onChange, name, style, ...rest }) {
+  const [options, setOptions] = useState(list === 'categories' ? CATEGORIES : [])
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(-1) // 키보드로 고르고 있는 줄
+
+  useEffect(() => {
+    if (list === 'event-names') loadEventNames().then(setOptions)
+  }, [list])
+
+  const text = String(value || '').trim()
+  // 입력한 글자가 들어간 것만. 이미 목록과 똑같이 입력했으면 전체를 보여 준다
+  const shown = !text || options.includes(text) ? options : options.filter((o) => o.includes(text))
+
+  // 고르면 보통 입력처럼 onChange를 불러 준다
+  function pick(option) {
+    onChange({ target: { name, value: option, type: 'text' } })
+    setOpen(false)
+    setActive(-1)
+  }
+
+  function onKeyDown(e) {
+    if (!open || shown.length === 0) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => (i + 1) % shown.length) }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => (i <= 0 ? shown.length - 1 : i - 1)) }
+    if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pick(shown[active]) }
+    if (e.key === 'Escape') setOpen(false)
+  }
+
+  return (
+    <span style={{ position: 'relative', display: 'inline-block', width: style?.width }}>
+      <input
+        {...rest}
+        name={name}
+        value={value}
+        autoComplete="off"
+        onChange={(e) => { onChange(e); setOpen(true); setActive(-1) }}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={onKeyDown}
+        style={{ ...style, width: '100%', paddingRight: 28 }}
+      />
+      {/* 오른쪽 꺾쇠 표시 (누르면 입력칸이 눌린 것과 같음) */}
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"
+        style={{ position: 'absolute', right: 10, top: '50%', marginTop: -6, pointerEvents: 'none', color: 'var(--muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>
+        <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {open && shown.length > 0 && (
+        <ul className="suggest-list" role="listbox">
+          {shown.map((o, i) => (
+            <li
+              key={o}
+              role="option"
+              aria-selected={i === active}
+              className={i === active || o === text ? 'on' : ''}
+              onMouseDown={(e) => e.preventDefault()} // 고르기 전에 입력칸이 닫히지 않게
+              onClick={() => pick(o)}
+              onMouseEnter={() => setActive(i)}
+            >
+              {o}
+            </li>
+          ))}
+        </ul>
+      )}
+    </span>
+  )
+}
+
+export default SuggestInput

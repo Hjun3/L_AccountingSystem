@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, CATEGORIES } from '../common'
-import NameSuggestions from '../components/NameSuggestions'
+import SuggestInput from '../components/SuggestInput'
 
 // 폼의 처음 상태
 const EMPTY_FORM = {
@@ -119,7 +119,6 @@ function ExpenseNewPage() {
   return (
     <div>
       <h2>지출 등록</h2>
-      <NameSuggestions />
       <div className="new-expense">
         {/* 왼쪽: 입력 */}
         <form onSubmit={handleSubmit} className="card" style={{ display: 'grid', gap: 16, marginBottom: 0, padding: 24, alignContent: 'start', alignSelf: 'start' }}>
@@ -137,10 +136,10 @@ function ExpenseNewPage() {
           </div>
           <div className="two-col">
             <label>
-              사업명 <input name="event_name" list="event-names" placeholder="예: 개강총회" value={form.event_name} onChange={handleChange} required />
+              사업명 <SuggestInput name="event_name" list="event-names" placeholder="예: 개강총회" value={form.event_name} onChange={handleChange} required />
             </label>
             <label>
-              지출 항목 <input name="category" list="categories" placeholder="예: 급량비" value={form.category} onChange={handleChange} required />
+              지출 항목 <SuggestInput name="category" list="categories" placeholder="예: 급량비" value={form.category} onChange={handleChange} required />
             </label>
           </div>
           {/* 지출 항목 빠르게 고르기 */}

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, canEdit, useUser } from '../common'
 import DecisionCell from '../components/DecisionCell'
 import MemoAndFiles from '../components/MemoAndFiles'
-import NameSuggestions from '../components/NameSuggestions'
+import SuggestInput from '../components/SuggestInput'
 import StatusBadge from '../components/StatusBadge'
 import TodoList from '../components/TodoList'
 
@@ -33,11 +33,10 @@ function ExpenseEditForm({ expense, onSaved, onCancel }) {
 
   return (
     <form onSubmit={save} style={{ display: 'grid', gap: 6, maxWidth: 400 }}>
-      <NameSuggestions />
       <label>날짜 <input type="date" value={form.date} onChange={set('date')} required /></label>
       <label>금액(원) <input type="number" min="0" value={form.amount} onChange={set('amount')} required /></label>
-      <label>사업명 <input list="event-names" value={form.event_name} onChange={set('event_name')} required /></label>
-      <label>지출 항목 <input list="categories" value={form.category} onChange={set('category')} required /></label>
+      <label>사업명 <SuggestInput list="event-names" value={form.event_name} onChange={set('event_name')} required /></label>
+      <label>지출 항목 <SuggestInput list="categories" value={form.category} onChange={set('category')} required /></label>
       <label>지출 내용 <input value={form.description} onChange={set('description')} required /></label>
       <label><input type="checkbox" checked={form.has_receipt} onChange={set('has_receipt')} /> 증빙(영수증) 있음</label>
       <div>

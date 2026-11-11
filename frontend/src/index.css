@@ -145,3 +145,33 @@ button.active { background: var(--primary-soft); color: var(--primary); border-c
 .new-expense input:not([type='checkbox']), .new-expense textarea { width: 100%; }
 @media (max-width: 900px) { .new-expense { grid-template-columns: minmax(0, 1fr); } .new-expense-side { display: contents !important; } .receipt-card { order: -1; } .steps-card { order: 1; } }  /* 휴대폰: 사진 칸은 위로, 안내는 아래로 */
 @media (max-width: 480px) { .two-col { grid-template-columns: 1fr; } }
+
+/* ---------- 전체 손질 ---------- */
+/* 글자를 눌렀을 때 입력칸처럼 깜빡이는 커서가 보이지 않게 (입력칸에서만 커서 표시) */
+* { caret-color: transparent; }
+input, textarea, select, [contenteditable='true'] { caret-color: auto; }
+/* 마우스로 누른 곳에 생기는 테두리는 숨기고, 키보드(Tab)로 이동할 때만 보이게 */
+:focus:not(:focus-visible) { outline: none; }
+
+/* 숫자 칸의 위아래 버튼 없애기 (금액을 1원씩 올릴 일은 없으므로) */
+input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* 스크롤 막대: 얇고 연하게 */
+* { scrollbar-width: thin; scrollbar-color: #c9ced4 transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c9ced4; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: #a9b0b8; }
+
+/* 자동완성 목록 (사업명·지출 항목 입력칸, components/SuggestInput.jsx) */
+.suggest-list {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 30;
+  min-width: 100%; max-height: 240px; overflow-y: auto;
+  margin: 0; padding: 4px; list-style: none;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  box-shadow: 0 4px 12px rgba(25, 31, 40, 0.08);
+}
+.suggest-list li { padding: 7px 10px; border-radius: 4px; font-size: 14px; color: var(--text); cursor: pointer; white-space: nowrap; }
+.suggest-list li.on, .suggest-list li:hover { background: var(--primary-soft); color: var(--primary); }

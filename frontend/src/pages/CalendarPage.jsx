@@ -120,7 +120,7 @@ function CalendarPage() {
                         e.stopPropagation() // 삭제 버튼을 눌러도 날짜 선택은 되지 않게
                         deleteSchedule(s)
                       }}
-                      style={{ fontSize: 10, padding: '0 3px' }}
+                      style={{ fontSize: 11, lineHeight: 1, width: 16, height: 16, padding: 0, verticalAlign: 'middle' }} title="일정 삭제"
                     >
                       ×
                     </button>
