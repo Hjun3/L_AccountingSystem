@@ -1,7 +1,7 @@
 """시연용 가상 데이터를 DB에 한 번에 넣는 스크립트.
 
 넣는 것:
-  1. 예산 (demo_data.json, 학기 전/1학기/2학기)
+  1. 예산 (demo_data.json, 학기 전/1학기/여름방학/2학기)
   2. 일정 (demo_data.json)
   3. 통장 거래내역 (kakaobank_sample.xlsx, 가상)
   4. 지출 (expenses.json) - 실제 앱과 똑같이 AI 점검(OpenAI 호출)을 거친 뒤 저장된다. (점검 결과를 미리 정해두지 않음)
@@ -32,7 +32,7 @@ demo = json.loads((SAMPLE_DIR / "demo_data.json").read_text(encoding="utf-8"))
 
 # 1. 예산
 with get_conn() as conn:
-    # 2026년 임기가 없으면 만들고, 그 임기의 기간(학기 전/1학기/2학기)에 예산을 넣는다
+    # 2026년 임기가 없으면 만들고, 그 임기의 기간(학기 전/1학기/여름방학/2학기)에 예산을 넣는다
     if not conn.execute("SELECT 1 FROM terms WHERE year = ?", (DEMO_YEAR,)).fetchone():
         create_term_with_periods(conn, DEMO_YEAR)
     term_id = ensure_term(conn, DEMO_YEAR)

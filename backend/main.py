@@ -64,7 +64,7 @@ def ensure_term(conn, year):
 
 
 def create_term_with_periods(conn, year):
-    """임기와 기본 기간 3개(학기 전 1~2월, 1학기 3~7월, 2학기 8~12월)를 만든다."""
+    """임기와 기본 기간 4개(학기 전 1~2월, 1학기 3~6월, 여름방학 7~8월, 2학기 9~12월)를 만든다."""
     term_id = ensure_term(conn, year)
     end_feb = "29" if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else "28"
     # 지난 임기의 2학기가 올해 초까지 이어지면, 겹치지 않게 '학기 전'을 그다음 날부터 시작한다
@@ -79,11 +79,38 @@ def create_term_with_periods(conn, year):
         "INSERT INTO periods (org_id, term_id, name, start_date, end_date, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
         [
             (DEFAULT_ORG_ID, term_id, "학기 전", start, f"{year}-02-{end_feb}", 1),
-            (DEFAULT_ORG_ID, term_id, "1학기", f"{year}-03-01", f"{year}-07-31", 2),
-            (DEFAULT_ORG_ID, term_id, "2학기", f"{year}-08-01", f"{year}-12-31", 3),
+            (DEFAULT_ORG_ID, term_id, "1학기", f"{year}-03-01", f"{year}-06-30", 2),
+            (DEFAULT_ORG_ID, term_id, "여름방학", f"{year}-07-01", f"{year}-08-31", 3),
+            (DEFAULT_ORG_ID, term_id, "2학기", f"{year}-09-01", f"{year}-12-31", 4),
         ],
     )
     return term_id
+
+
+def add_summer_periods(conn):
+    """기간이 3개(학기 전/1학기/2학기)였던 예전 임기에 '여름방학' 기간을 넣는다. (서버 시작 시 한 번씩, 이미 있으면 건너뜀)
+    - 예전 기본 날짜(1학기 3~7월, 2학기 8~12월) 그대로면: 1학기 3~6월, 여름방학 7~8월, 2학기 9~12월로 나눈다
+    - 날짜를 직접 고친 임기면: 1학기 끝 다음 날 ~ 2학기 시작 전날이 비어 있을 때만 그 사이를 여름방학으로 넣는다
+    """
+    day = lambda text, n: (datetime.fromisoformat(text) + timedelta(days=n)).date().isoformat()
+    for t in conn.execute("SELECT id, year FROM terms").fetchall():
+        periods = {r["name"]: r for r in conn.execute("SELECT * FROM periods WHERE term_id = ?", (t["id"],))}
+        if "여름방학" in periods or "1학기" not in periods or "2학기" not in periods:
+            continue
+        first, second, y = periods["1학기"], periods["2학기"], t["year"]
+        if first["end_date"] == f"{y}-07-31" and second["start_date"] == f"{y}-08-01":
+            conn.execute("UPDATE periods SET end_date = ? WHERE id = ?", (f"{y}-06-30", first["id"]))
+            conn.execute("UPDATE periods SET start_date = ? WHERE id = ?", (f"{y}-09-01", second["id"]))
+            start, end = f"{y}-07-01", f"{y}-08-31"
+        else:
+            start, end = day(first["end_date"], 1), day(second["start_date"], -1)
+            if start > end:
+                continue  # 사이에 빈 날짜가 없으면 날짜를 건드리지 않는다 (화면에서 직접 고칠 수 있음)
+        conn.execute("UPDATE periods SET sort_order = 4 WHERE id = ?", (second["id"],))
+        conn.execute(
+            "INSERT INTO periods (org_id, term_id, name, start_date, end_date, sort_order) VALUES (?, ?, '여름방학', ?, ?, 3)",
+            (DEFAULT_ORG_ID, t["id"], start, end),
+        )
 
 
 def term_range(conn, term_id):
@@ -184,7 +211,7 @@ def init_db():
             )
             """
         )
-        # 임기(회계연도): 예) 2026년. 기간(학기 전/1학기/2학기)이 임기에 속한다. 다음 학생회는 새 임기를 만들어 쓴다.
+        # 임기(회계연도): 예) 2026년. 기간(학기 전/1학기/여름방학/2학기)이 임기에 속한다. 다음 학생회는 새 임기를 만들어 쓴다.
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS terms (
@@ -197,7 +224,7 @@ def init_db():
             )
             """
         )
-        # 예산 기간: 학기 전 / 1학기 / 2학기. 지출은 날짜가 기간 범위에 들어가면 그 기간으로 본다.
+        # 예산 기간: 학기 전 / 1학기 / 여름방학 / 2학기. 지출은 날짜가 기간 범위에 들어가면 그 기간으로 본다.
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS periods (
@@ -215,9 +242,10 @@ def init_db():
         # 임기가 없는 기존 기간은 시작일의 연도 임기에 넣는다
         for p in conn.execute("SELECT id, start_date FROM periods WHERE term_id IS NULL").fetchall():
             conn.execute("UPDATE periods SET term_id = ? WHERE id = ?", (ensure_term(conn, int(p["start_date"][:4])), p["id"]))
-        # 처음 실행이면 올해 임기와 기간 3개를 만든다
+        # 처음 실행이면 올해 임기와 기간 4개를 만든다
         if conn.execute("SELECT COUNT(*) FROM terms").fetchone()[0] == 0:
             create_term_with_periods(conn, datetime.now().year)
+        add_summer_periods(conn)  # 예전 임기(기간 3개)에 여름방학 추가
         budget_columns = [c["name"] for c in conn.execute("PRAGMA table_info(budgets)")]
         if "period_id" not in budget_columns:
             conn.execute("ALTER TABLE budgets ADD COLUMN period_id INTEGER")
@@ -733,7 +761,7 @@ def create_term(body: TermIn):
             raise HTTPException(status_code=400, detail=f"{body.year}년 임기가 이미 있습니다.")
         term_id = create_term_with_periods(conn, body.year)
         if body.copy_budgets_from is not None:
-            # 같은 이름의 기간(학기 전/1학기/2학기)끼리 예산 줄을 복사한다
+            # 같은 이름의 기간(학기 전/1학기/여름방학/2학기)끼리 예산 줄을 복사한다
             new_periods = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM periods WHERE term_id = ?", (term_id,))}
             old = conn.execute(
                 "SELECT p.name AS period_name, b.event_name, b.category, b.amount, b.memo FROM budgets b "
@@ -838,7 +866,7 @@ def delete_budget(budget_id: int):
 
 @app.get("/reports/settlement.xlsx")
 def settlement_report(period_id: int):
-    """선택한 기간(학기 전/1학기/2학기)의 결산보고서 엑셀을 내려준다."""
+    """선택한 기간(학기 전/1학기/여름방학/2학기)의 결산보고서 엑셀을 내려준다."""
     with get_conn() as conn:
         p = get_period(conn, period_id)
         expenses = [dict(r) for r in conn.execute(
