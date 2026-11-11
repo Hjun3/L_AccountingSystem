@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, finalLabel } from '../common'
 
 // 지출 한 건에 대한 총무 결정 칸 (목록 페이지와 상세 페이지에서 같이 사용)
@@ -6,17 +6,38 @@ import { api, finalLabel } from '../common'
 //   · AI가 '문제 없음'이면 누르면 바로 확정
 //   · AI가 '확인 필요'·'조치 필요'면 메모 입력칸이 열리고, 메모를 적어야 확정 (감사 때 설명할 근거)
 //     이미 메모가 있어도(취소 후 다시 확정 등) 입력칸을 열어 고칠 수 있게 한다
-// - 확정 상태: '확정'과 메모, [취소] 버튼. 목록(compact)에서는 긴 메모를 두 줄까지만 보여 준다
+// - 확정 상태: '확정'과 메모, [취소] 버튼. 목록(compact)에서는 메모를 한 줄만 보여 주고, [메모 보기]를 누르면 작은 창으로 전체를 보여 준다
 // 메모는 지출 상세의 '메모'와 같은 칸에 저장된다.
 // compact: 목록용 간단 모드 (결정 이력은 숨김)
 const MEMO_MAX = 300 // 메모 최대 글자 수
-// 긴 메모를 두 줄까지만 보여 주고 '...'로 줄인다 (마우스를 올리면 전체가 보임)
-const clamp2 = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
+// 메모를 한 줄까지만 보여 주고 '...'로 줄인다
+const oneLine = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+
+// 메모 전체를 보여 주는 작은 창. [닫기], 창 바깥 클릭, Esc 키로 닫힌다.
+function MemoPopup({ memo, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="popup-bg" onClick={onClose}>
+      <div className="popup" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <b>총무 메모</b>
+        <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'keep-all', overflowWrap: 'anywhere', margin: '10px 0 16px', color: 'var(--text)', fontSize: 14 }}>{memo}</p>
+        <div style={{ textAlign: 'right' }}>
+          <button onClick={onClose}>닫기</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function DecisionCell({ expense, onSaved, compact = false }) {
   const [writing, setWriting] = useState(false) // 메모 입력칸을 보여 줄지
   const [memo, setMemo] = useState(expense.memo || '')
   const [error, setError] = useState('')
+  const [showMemo, setShowMemo] = useState(false) // 메모 보기 창
   const needsMemo = expense.ai_status === '주의' || expense.ai_status === '위반'
 
   async function save(finalStatus, withMemo = false) {
@@ -48,11 +69,17 @@ function DecisionCell({ expense, onSaved, compact = false }) {
       {decided ? (
         <>
           <b>{finalLabel(expense.final_status)}</b>
-          {expense.memo && (
-            <div title={expense.memo} style={{ fontSize: 12, color: 'var(--sub)', wordBreak: 'break-all', whiteSpace: 'pre-wrap', maxWidth: 260, ...(compact ? clamp2 : {}) }}>
-              메모: {expense.memo}
+          {expense.memo && compact && (
+            // 목록: 한 줄 미리보기 + [메모 보기]
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, maxWidth: 240, fontSize: 12, color: 'var(--sub)' }}>
+              <span style={{ ...oneLine, minWidth: 0 }}>메모: {expense.memo}</span>
+              <button onClick={() => setShowMemo(true)} style={{ height: 22, fontSize: 11, padding: '0 6px', flexShrink: 0 }}>메모 보기</button>
             </div>
           )}
+          {expense.memo && !compact && (
+            <div style={{ fontSize: 12, color: 'var(--sub)', wordBreak: 'keep-all', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>메모: {expense.memo}</div>
+          )}
+          {showMemo && <MemoPopup memo={expense.memo} onClose={() => setShowMemo(false)} />}
           <button onClick={() => save('대기')} style={{ justifySelf: 'start' }}>취소</button>
         </>
       ) : writing ? (

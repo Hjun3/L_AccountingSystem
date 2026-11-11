@@ -24,6 +24,7 @@ function SuggestInput({ list, value, onChange, name, style, ...rest }) {
   const [active, setActive] = useState(-1) // 키보드로 고르고 있는 줄
   const [pos, setPos] = useState(null) // 목록을 띄울 화면 위치
   const inputRef = useRef(null)
+  const listRef = useRef(null)
 
   // 입력칸 위치를 보고 목록 자리를 정한다. 아래 공간이 모자라면 위로 펼친다.
   function place() {
@@ -44,6 +45,18 @@ function SuggestInput({ list, value, onChange, name, style, ...rest }) {
       window.removeEventListener('scroll', place, true)
       window.removeEventListener('resize', place)
     }
+  }, [open])
+
+  // 열려 있을 때 입력칸·목록 바깥 어디든 누르면 닫는다
+  // (입력칸 이름표(label)를 누르면 브라우저가 입력칸으로 초점을 되돌려서, 초점만으로는 닫히지 않기 때문)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e) => {
+      if (inputRef.current?.contains(e.target) || listRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
   useEffect(() => {
@@ -91,7 +104,7 @@ function SuggestInput({ list, value, onChange, name, style, ...rest }) {
         <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       {open && pos && shown.length > 0 && (
-        <ul className="suggest-list" role="listbox" style={pos}>
+        <ul ref={listRef} className="suggest-list" role="listbox" style={pos}>
           {shown.map((o, i) => (
             <li
               key={o}
