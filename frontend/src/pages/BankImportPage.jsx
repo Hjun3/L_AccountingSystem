@@ -211,7 +211,7 @@ function BankImportPage() {
             </table>
             {rows.length === 0 && <p className="muted" style={{ padding: 16 }}>미등록 출금이 없습니다. 모두 지출로 등록되어 있어요.</p>}
           </div>
-          <Pager page={current} count={pageCount} onChange={setPage} />
+          <Pager page={current} count={pageCount} onChange={setPage} keepPosition />
 
           <div className="section-title">
             <h3>통장에 출금이 없는 지출 <span className="muted" style={{ fontWeight: 400 }}>{result.unmatched_expenses.length}건</span></h3>

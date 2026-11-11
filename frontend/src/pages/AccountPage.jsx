@@ -276,7 +276,7 @@ function AccountPage({ onUserChanged }) {
                 <div>{!s.current && <button onClick={() => logoutOne(s)}>로그아웃</button>}</div>
               </div>
             ))}
-            <Pager page={sessionView.current} count={sessionView.count} onChange={setSessionPage} />
+            <Pager page={sessionView.current} count={sessionView.count} onChange={setSessionPage} keepPosition />
           </section>
 
           {/* 최근 활동 */}
@@ -307,7 +307,7 @@ function AccountPage({ onUserChanged }) {
                 ))}
               </ol>
             )}
-            <Pager page={activityView.current} count={activityView.count} onChange={setActivityPage} />
+            <Pager page={activityView.current} count={activityView.count} onChange={setActivityPage} keepPosition />
           </section>
         </div>
       </div>

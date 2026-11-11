@@ -29,7 +29,7 @@ function LoginPage({ onLogin, onBack }) {
         <h1 style={{ fontSize: 36, margin: '0 0 6px', letterSpacing: '-0.02em' }}>짝<span style={{ color: 'var(--primary)' }}>장부</span></h1>
         <p className="muted" style={{ marginTop: 0, marginBottom: 28, fontSize: 15 }}>회계 장부를 같이 쓰는 짝꿍</p>
         <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
-          <input style={big} placeholder="아이디" autoComplete="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
+          <input style={big} placeholder="아이디" autoComplete="username" autoFocus value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
           <input style={big} type="password" placeholder="비밀번호" autoComplete="current-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
           <button style={{ ...big, fontWeight: 600, marginTop: 4 }} type="submit" disabled={loading}>{loading ? '로그인 중...' : '로그인'}</button>
         </form>
