@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { api, STATUS_LABELS, termQuery, useTerm } from '../common'
 import DecisionCell from '../components/DecisionCell'
 import StatusBadge from '../components/StatusBadge'
 
 // 필터 버튼 목록: AI 점검 결과와 총무 결정 상태로 걸러 본다
 const FILTERS = ['전체', '적합', '주의', '위반', '결정 대기']
+
+const PAGE_SIZE = 10 // 한 쪽에 보여 줄 지출 수
 
 function matchesFilter(expense, filter) {
   if (filter === '전체') return true
@@ -19,6 +21,8 @@ function ExpenseListPage() {
   const [filter, setFilter] = useState('전체')
   const [error, setError] = useState('')
   const { termId } = useTerm() // 위 메뉴에서 고른 임기
+  const [page, setPage] = useState(1)
+  const navigate = useNavigate()
 
   async function loadExpenses() {
     try {
@@ -33,9 +37,15 @@ function ExpenseListPage() {
     loadExpenses()
   }, [termId]) // 임기를 바꾸면 다시 불러온다
 
+  // 필터나 임기를 바꾸면 첫 쪽으로
+  useEffect(() => setPage(1), [filter, termId])
+
   const shown = expenses.filter((exp) => matchesFilter(exp, filter))
 
   const sum = shown.reduce((n, exp) => n + exp.amount, 0)
+  const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
+  const current = Math.min(page, pageCount) // 확정 등으로 건수가 줄어도 없는 쪽에 머물지 않게
+  const pageRows = shown.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
 
   return (
     <div>
@@ -71,17 +81,18 @@ function ExpenseListPage() {
             </tr>
           </thead>
           <tbody>
-            {shown.map((exp) => {
+            {pageRows.map((exp) => {
               const todosLeft = exp.ai_todos.filter((t) => !t.done).length
               return (
-                <tr key={exp.id}>
+                // 줄 아무 곳이나 누르면 상세 페이지로 (총무 결정 칸은 제외)
+                <tr key={exp.id} onClick={() => navigate(`/expenses/${exp.id}`)} style={{ cursor: 'pointer' }}>
                   <td className="tnum" style={{ whiteSpace: 'nowrap' }}>{exp.date.slice(2).replaceAll('-', '.')}</td>
                   <td style={{ minWidth: 110 }}>
                     <div>{exp.event_name}</div>
                     <div className="muted">{exp.category}</div>
                   </td>
                   <td style={{ minWidth: 200 }}>
-                    <Link to={`/expenses/${exp.id}`} style={{ color: 'var(--text)' }}>{exp.description}</Link>
+                    {exp.description}
                   </td>
                   <td className="num" style={{ fontWeight: 600 }}>{exp.amount.toLocaleString()}</td>
                   <td style={{ color: exp.has_receipt ? 'var(--sub)' : 'var(--bad)', whiteSpace: 'nowrap' }}>
@@ -93,7 +104,7 @@ function ExpenseListPage() {
                     <div style={{ fontSize: 12, color: 'var(--sub)' }}>{exp.ai_reason}</div>
                   </td>
                   <td className="num" style={{ color: todosLeft ? 'var(--bad)' : 'var(--muted)' }}>{todosLeft || '-'}</td>
-                  <td>
+                  <td onClick={(e) => e.stopPropagation()} style={{ cursor: 'default' }}>
                     <DecisionCell key={exp.id + exp.final_status} expense={exp} onSaved={loadExpenses} compact />
                   </td>
                 </tr>
@@ -103,6 +114,26 @@ function ExpenseListPage() {
         </table>
         {shown.length === 0 && <p className="muted" style={{ padding: 16 }}>해당하는 지출이 없습니다.</p>}
       </div>
+      {pageCount > 1 && <Pager page={current} count={pageCount} onChange={(p) => { setPage(p); window.scrollTo(0, 0) }} />}
+    </div>
+  )
+}
+
+// 페이지 번호: 5개씩 묶어 보여 준다. « » 5쪽 이동, ‹ › 1쪽 이동
+function Pager({ page, count, onChange }) {
+  const go = (p) => onChange(Math.min(count, Math.max(1, p)))
+  const first = Math.floor((page - 1) / 5) * 5 + 1 // 지금 묶음의 첫 번호 (1, 6, 11 ...)
+  const numbers = Array.from({ length: Math.min(5, count - first + 1) }, (_, i) => first + i)
+  const arrow = { width: 32, padding: 0 }
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 16 }}>
+      <button style={arrow} onClick={() => go(page - 5)} disabled={page === 1} title="5쪽 앞으로">«</button>
+      <button style={arrow} onClick={() => go(page - 1)} disabled={page === 1} title="이전 쪽">‹</button>
+      {numbers.map((n) => (
+        <button key={n} onClick={() => go(n)} className={n === page ? 'active' : ''} style={{ minWidth: 32, padding: '0 8px' }}>{n}</button>
+      ))}
+      <button style={arrow} onClick={() => go(page + 1)} disabled={page === count} title="다음 쪽">›</button>
+      <button style={arrow} onClick={() => go(page + 5)} disabled={page === count} title="5쪽 뒤로">»</button>
     </div>
   )
 }
