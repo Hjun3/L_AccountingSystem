@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, CATEGORIES } from '../common'
 
 // 사업명·지출 항목 입력칸 (자동완성 목록이 붙은 입력칸)
 // 브라우저 기본 자동완성(datalist)은 ▼ 모양과 목록 모양을 바꿀 수 없어서 직접 만들었다.
 // - list="event-names": 예산에 등록된 사업명 / list="categories": 기본 지출 항목
 // - 입력하면 그 글자가 들어간 것만 보여 주고, 위아래 키·Enter로도 고를 수 있다.
+// - 입력칸을 누르면 열리고, 열린 상태에서 다시 누르면 닫힌다.
+// - 목록은 화면 기준(position: fixed)으로 띄워서, 표 안에 있어도 표에 스크롤이 생기지 않는다.
 // 사용법은 보통 input과 같다: <SuggestInput list="categories" value={...} onChange={...} />
 
 let eventNamesRequest = null // 사업명 목록은 한 번만 불러와서 모든 입력칸이 같이 쓴다
@@ -20,6 +22,29 @@ function SuggestInput({ list, value, onChange, name, style, ...rest }) {
   const [options, setOptions] = useState(list === 'categories' ? CATEGORIES : [])
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1) // 키보드로 고르고 있는 줄
+  const [pos, setPos] = useState(null) // 목록을 띄울 화면 위치
+  const inputRef = useRef(null)
+
+  // 입력칸 위치를 보고 목록 자리를 정한다. 아래 공간이 모자라면 위로 펼친다.
+  function place() {
+    const r = inputRef.current?.getBoundingClientRect()
+    if (!r) return
+    const below = window.innerHeight - r.bottom
+    const up = below < 250 && r.top > below
+    setPos({ left: r.left, minWidth: r.width, ...(up ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }) })
+  }
+
+  // 열려 있는 동안 화면을 스크롤하거나 창 크기를 바꾸면 위치를 다시 맞춘다
+  useEffect(() => {
+    if (!open) return
+    place()
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [open])
 
   useEffect(() => {
     if (list === 'event-names') loadEventNames().then(setOptions)
@@ -52,8 +77,10 @@ function SuggestInput({ list, value, onChange, name, style, ...rest }) {
         value={value}
         autoComplete="off"
         onChange={(e) => { onChange(e); setOpen(true); setActive(-1) }}
+        ref={inputRef}
         onFocus={() => setOpen(true)}
-        onClick={() => setOpen(true)}
+        // 이미 입력 중인 칸을 다시 누르면 목록을 닫고, 아니면 연다
+        onMouseDown={() => setOpen((o) => (document.activeElement === inputRef.current ? !o : true))}
         onBlur={() => setOpen(false)}
         onKeyDown={onKeyDown}
         style={{ ...style, width: '100%', paddingRight: 28 }}
@@ -63,8 +90,8 @@ function SuggestInput({ list, value, onChange, name, style, ...rest }) {
         style={{ position: 'absolute', right: 10, top: '50%', marginTop: -6, pointerEvents: 'none', color: 'var(--muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>
         <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      {open && shown.length > 0 && (
-        <ul className="suggest-list" role="listbox">
+      {open && pos && shown.length > 0 && (
+        <ul className="suggest-list" role="listbox" style={pos}>
           {shown.map((o, i) => (
             <li
               key={o}

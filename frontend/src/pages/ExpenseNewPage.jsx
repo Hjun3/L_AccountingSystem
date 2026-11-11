@@ -63,7 +63,8 @@ function ExpenseNewPage() {
     if (!file || reading || saving) return
     if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return setError('영수증은 JPG, PNG, WEBP 사진만 읽을 수 있습니다.')
     if (preview) URL.revokeObjectURL(preview)
-    setPreview(URL.createObjectURL(file))
+    const newPreview = URL.createObjectURL(file)
+    setPreview(newPreview)
     setError('')
     setReadNotice('')
     setReading(true)
@@ -83,6 +84,10 @@ function ExpenseNewPage() {
       setReceiptFile(file)
       setReadNotice('AI가 읽은 값을 채웠습니다. 틀린 곳이 없는지 확인하고, 사업명과 지출 항목을 입력한 뒤 저장하세요.')
     } catch (e) {
+      // 실패하면 미리보기를 지워서 다시 '사진 고르기' 칸이 보이게 한다 (첨부 예정 사진도 비움)
+      URL.revokeObjectURL(newPreview)
+      setPreview('')
+      setReceiptFile(null)
       setError(`영수증 읽기에 실패했습니다. ${e.message}`)
     } finally {
       setReading(false)
