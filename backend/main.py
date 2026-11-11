@@ -265,6 +265,9 @@ def init_db():
             )
             """
         )
+        # 여러 날 일정(예: MT 1박 2일)을 위해 종료일을 둔다. 비어 있으면 하루짜리 일정
+        if "end_date" not in [c["name"] for c in conn.execute("PRAGMA table_info(schedules)")]:
+            conn.execute("ALTER TABLE schedules ADD COLUMN end_date TEXT")
         # 총무 결정 이력: 확정/소명/취소를 누를 때마다 한 줄씩 쌓인다 (지우거나 고치지 않음)
         conn.execute(
             """
@@ -525,7 +528,8 @@ def get_regulation():
 
 class ScheduleIn(BaseModel):
     """캘린더 일정 입력값"""
-    date: str
+    date: str  # 시작일
+    end_date: str | None = None  # 종료일 (여러 날 일정일 때만. 없으면 하루짜리)
     kind: Literal["사업", "감사", "기타"]
     title: str
     memo: str = ""
@@ -543,10 +547,15 @@ def create_schedule(schedule: ScheduleIn):
     title = schedule.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="일정 제목을 입력하세요.")
+    end_date = schedule.end_date or None
+    if end_date and end_date < schedule.date:
+        raise HTTPException(status_code=400, detail="종료일이 시작일보다 빠를 수 없습니다.")
+    if end_date == schedule.date:
+        end_date = None  # 시작일과 같으면 하루짜리
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO schedules (org_id, date, kind, title, memo, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (DEFAULT_ORG_ID, schedule.date, schedule.kind, title, schedule.memo.strip(),
+            "INSERT INTO schedules (org_id, date, end_date, kind, title, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (DEFAULT_ORG_ID, schedule.date, end_date, schedule.kind, title, schedule.memo.strip(),
              datetime.now().isoformat(timespec="seconds")),
         )
         row = conn.execute("SELECT * FROM schedules WHERE id = ?", (cur.lastrowid,)).fetchone()

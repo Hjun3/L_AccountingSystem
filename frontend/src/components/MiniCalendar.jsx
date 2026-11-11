@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { KIND_COLORS } from '../common'
+import { KIND_COLORS, scheduleOn } from '../common'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 const pad = (n) => String(n).padStart(2, '0')
@@ -37,7 +37,7 @@ function MiniCalendar({ schedules, expenses }) {
         {cells.map((d, i) => {
           if (!d) return <span key={'e' + i} />
           const date = dateOf(d)
-          const daySchedules = schedules.filter((s) => s.date === date)
+          const daySchedules = schedules.filter((s) => scheduleOn(s, date))
           const hasExpense = expenses.some((e) => e.date === date)
           const isToday = date === todayStr
           const tip = [...daySchedules.map((s) => `[${s.kind}] ${s.title}`), hasExpense ? '지출 있음' : ''].filter(Boolean).join('\n')

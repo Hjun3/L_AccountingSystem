@@ -202,3 +202,6 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 /* 오른쪽 칸(예산 추가·일정 등록)의 입력칸이 기본 너비 때문에 칸 밖으로 넘치지 않게 */
 .budget-main aside, .calendar-main aside, .budget-main aside > *, .calendar-main aside > * { min-width: 0; }
 .budget-main aside input, .calendar-main aside input, .calendar-main aside select { width: 100%; min-width: 0; }
+.suggest-list li.new { color: var(--primary); font-weight: 600; border-bottom: 1px solid var(--line); border-radius: 4px 4px 0 0; margin-bottom: 2px; }
+.cal-item.multi { background: currentColor; border-radius: 3px; padding: 0 4px; margin: 1px -2px; }
+.cal-item.multi > span { color: #fff; }

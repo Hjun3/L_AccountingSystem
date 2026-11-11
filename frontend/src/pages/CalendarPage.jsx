@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { api, KIND_COLORS, STATUS_COLORS, STATUS_LABELS } from '../common'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { api, KIND_COLORS, scheduleDays, scheduleOn, STATUS_COLORS, STATUS_LABELS } from '../common'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -30,7 +30,8 @@ function CalendarPage() {
   const month = monthParam ? Number(monthParam.slice(5, 7)) - 1 : today.getMonth() // 0=1월
   const [expenses, setExpenses] = useState([])
   const [schedules, setSchedules] = useState([])
-  const [form, setForm] = useState({ date: toDateString(year, month, today.getDate()), kind: '사업', title: '', memo: '' })
+  const [form, setForm] = useState({ date: toDateString(year, month, today.getDate()), end_date: '', kind: '사업', title: '', memo: '' })
+  const navigate = useNavigate()
   const [error, setError] = useState('')
 
   async function loadAll() {
@@ -58,7 +59,7 @@ function CalendarPage() {
     setError('')
     try {
       await api('/schedules', { method: 'POST', body: JSON.stringify(form) })
-      setForm({ ...form, title: '', memo: '' })
+      setForm({ ...form, end_date: '', title: '', memo: '' })
       loadAll()
     } catch (e) {
       setError(e.message)
@@ -79,8 +80,9 @@ function CalendarPage() {
   const todayString = toDateString(today.getFullYear(), today.getMonth(), today.getDate())
 
   // 고른 날짜(일정 등록 날짜)의 일정·지출: 오른쪽 카드에 보여 준다
-  const daySchedules = schedules.filter((sc) => sc.date === form.date)
+  const daySchedules = schedules.filter((sc) => scheduleOn(sc, form.date))
   const dayExpenses = expenses.filter((exp) => exp.date === form.date)
+  const moveButton = { height: 24, fontSize: 12, padding: '0 8px', flexShrink: 0 }
   const deleteButton = (sc) => (
     <button
       onClick={(e) => {
@@ -122,10 +124,13 @@ function CalendarPage() {
                 {date && (
                   <>
                     <div className={date === todayString ? 'cal-today' : ''} style={{ marginBottom: 2 }}>{Number(date.slice(8))}</div>
-                    {schedules.filter((sc) => sc.date === date).map((sc) => (
-                      <div key={'s' + sc.id} className="cal-item" style={{ color: KIND_COLORS[sc.kind] }} title={sc.memo}>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>[{sc.kind}] {sc.title}</span>
-                        {deleteButton(sc)}
+                    {schedules.filter((sc) => scheduleOn(sc, date)).map((sc) => (
+                      // 여러 날 일정은 기간 동안 매일 보이고, 띠 모양 바탕으로 이어져 보이게 한다
+                      <div key={'s' + sc.id} className={`cal-item${sc.end_date ? ' multi' : ''}`} style={{ color: KIND_COLORS[sc.kind] }} title={[scheduleDays(sc), sc.memo].filter(Boolean).join(' · ')}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {sc.date === date || date.endsWith('-01') ? `[${sc.kind}] ${sc.title}` : `↳ ${sc.title}`}
+                        </span>
+                        {sc.date === date && deleteButton(sc)}
                       </div>
                     ))}
                     {expenses.filter((exp) => exp.date === date).map((exp) => (
@@ -159,19 +164,28 @@ function CalendarPage() {
               <p className="muted">일정과 지출이 없습니다.</p>
             ) : (
               <div style={{ display: 'grid', gap: 8, marginTop: 10, fontSize: 13 }}>
+                {/* 일정: [이동]을 누르면 그 사업(일정 제목과 같은 사업명)의 지출 목록으로 */}
                 {daySchedules.map((sc) => (
-                  <div key={'s' + sc.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <div key={'s' + sc.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: KIND_COLORS[sc.kind], flexShrink: 0 }}>{sc.kind}</span>
-                    <span style={{ flex: 1 }}>{sc.title}{sc.memo && <div className="muted">{sc.memo}</div>}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      {sc.title}{sc.end_date && <span className="muted"> · {scheduleDays(sc)}</span>}
+                      {sc.memo && <div className="muted">{sc.memo}</div>}
+                    </span>
+                    <button onClick={() => navigate(`/expenses?event=${encodeURIComponent(sc.title)}`)} style={moveButton} title={`'${sc.title}' 사업의 지출 목록 보기`}>이동</button>
                     {deleteButton(sc)}
                   </div>
                 ))}
+                {/* 지출: [이동]을 누르면 지출 상세로 */}
                 {dayExpenses.map((exp) => (
-                  <Link key={'e' + exp.id} to={`/expenses/${exp.id}`} style={{ display: 'flex', gap: 8, color: 'var(--text)' }}>
+                  <div key={'e' + exp.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ color: STATUS_COLORS[exp.ai_status], flexShrink: 0 }}>●</span>
-                    <span style={{ flex: 1, minWidth: 0 }}>{exp.event_name} · <span className="muted">{exp.description}</span></span>
-                    <span className="tnum" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{exp.amount.toLocaleString()}원</span>
-                  </Link>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      {exp.event_name} · <span className="tnum" style={{ fontWeight: 600 }}>{exp.amount.toLocaleString()}원</span>
+                      <div className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exp.description}</div>
+                    </span>
+                    <button onClick={() => navigate(`/expenses/${exp.id}`)} style={moveButton} title="지출 상세 보기">이동</button>
+                  </div>
                 ))}
               </div>
             )}
@@ -179,10 +193,16 @@ function CalendarPage() {
 
           <form onSubmit={addSchedule} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
             <b>일정 등록</b>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 8 }}>
               <label>
-                날짜 <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
+                시작일 <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
               </label>
+              <label>
+                <span>종료일 <span className="muted">(선택)</span></span>
+                <input type="date" value={form.end_date} min={form.date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
+              </label>
+            </div>
+            <div>
               <label>
                 종류
                 <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>

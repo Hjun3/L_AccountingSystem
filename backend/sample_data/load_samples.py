@@ -58,8 +58,8 @@ with get_conn() as conn:
     for s in demo["schedules"]:
         if not conn.execute("SELECT 1 FROM schedules WHERE date = ? AND title = ?", (s["date"], s["title"])).fetchone():
             conn.execute(
-                "INSERT INTO schedules (org_id, date, kind, title, memo, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (DEFAULT_ORG_ID, s["date"], s["kind"], s["title"], s.get("memo", ""), now_text()),
+                "INSERT INTO schedules (org_id, date, end_date, kind, title, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (DEFAULT_ORG_ID, s["date"], s.get("end_date"), s["kind"], s["title"], s.get("memo", ""), now_text()),
             )
             added += 1
 print(f"[일정] {added}건 추가")

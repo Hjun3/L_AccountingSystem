@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, canEdit, KIND_COLORS, STATUS_COLORS, STATUS_LABELS, termQuery, useTerm, useUser } from '../common'
+import { api, canEdit, KIND_COLORS, scheduleDays, STATUS_COLORS, STATUS_LABELS, termQuery, useTerm, useUser } from '../common'
 import { BarList, BudgetBars, MonthBars } from '../components/Charts'
 import MiniCalendar from '../components/MiniCalendar'
 import StatusBadge from '../components/StatusBadge'
@@ -95,7 +95,7 @@ function DashboardPage() {
   const withTodos = expenses.filter((exp) => exp.ai_todos.some((t) => !t.done))
   const todoCount = withTodos.reduce((n, exp) => n + exp.ai_todos.filter((t) => !t.done).length, 0)
   const todayString = new Date().toLocaleDateString('sv') // YYYY-MM-DD
-  const upcoming = schedules.filter((s) => s.date >= todayString).slice(0, 4)
+  const upcoming = schedules.filter((s) => (s.end_date || s.date) >= todayString).slice(0, 4) // 진행 중인 여러 날 일정 포함
   const budgetTotal = budgetRows.reduce((n, r) => n + r.budget, 0)
   // 결정 대기: 확인·조치 필요를 먼저, 그다음 날짜 오래된 순
   const waitingSorted = [...needCheck, ...waiting.filter((exp) => !needCheck.includes(exp))]
@@ -224,7 +224,7 @@ function DashboardPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: KIND_COLORS[sc.kind] }}>{sc.kind}</div>
-                    <div>{sc.title}</div>
+                    <div>{sc.title}{sc.end_date && <span className="muted"> · {scheduleDays(sc)}</span>}</div>
                   </div>
                 </div>
               ))

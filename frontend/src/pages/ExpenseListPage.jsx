@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, STATUS_LABELS, termQuery, useTerm } from '../common'
 import DecisionCell from '../components/DecisionCell'
 import Pager, { paginate } from '../components/Pager'
@@ -24,6 +24,9 @@ function ExpenseListPage() {
   const { termId } = useTerm() // 위 메뉴에서 고른 임기
   const [page, setPage] = useState(1)
   const navigate = useNavigate()
+  // 캘린더 일정의 [이동]으로 오면 주소에 사업명이 붙는다 (예: /expenses?event=일일호프)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const eventFilter = searchParams.get('event')
 
   async function loadExpenses() {
     try {
@@ -39,9 +42,10 @@ function ExpenseListPage() {
   }, [termId]) // 임기를 바꾸면 다시 불러온다
 
   // 필터나 임기를 바꾸면 첫 쪽으로
-  useEffect(() => setPage(1), [filter, termId])
+  useEffect(() => setPage(1), [filter, termId, eventFilter])
 
-  const shown = expenses.filter((exp) => matchesFilter(exp, filter))
+  const inEvent = expenses.filter((exp) => !eventFilter || exp.event_name === eventFilter)
+  const shown = inEvent.filter((exp) => matchesFilter(exp, filter))
 
   const sum = shown.reduce((n, exp) => n + exp.amount, 0)
   const { rows: pageRows, count: pageCount, current } = paginate(shown, page, PAGE_SIZE)
@@ -57,9 +61,12 @@ function ExpenseListPage() {
       <div style={{ display: 'flex', gap: 4, margin: '12px 0', flexWrap: 'wrap', alignItems: 'center' }}>
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)} className={f === filter ? 'active' : ''}>
-            {STATUS_LABELS[f] || f} {expenses.filter((exp) => matchesFilter(exp, f)).length}
+            {STATUS_LABELS[f] || f} {inEvent.filter((exp) => matchesFilter(exp, f)).length}
           </button>
         ))}
+        {eventFilter && (
+          <button className="active" onClick={() => setSearchParams({})} title="사업 거르기 풀기">사업: {eventFilter} ×</button>
+        )}
         <span className="muted" style={{ marginLeft: 'auto' }}>
           {shown.length}건 · <span className="num">{sum.toLocaleString()}원</span>
         </span>
@@ -111,7 +118,7 @@ function ExpenseListPage() {
             })}
           </tbody>
         </table>
-        {shown.length === 0 && <p className="muted" style={{ padding: 16 }}>해당하는 지출이 없습니다.</p>}
+        {shown.length === 0 && <p className="muted" style={{ padding: 16 }}>{eventFilter ? `'${eventFilter}' 사업으로 등록된 지출이 없습니다.` : '해당하는 지출이 없습니다.'}</p>}
       </div>
       <Pager page={current} count={pageCount} onChange={(p) => { setPage(p); window.scrollTo(0, 0) }} />
     </div>

@@ -57,3 +57,9 @@ export async function api(path, options = {}) {
   }
   return data
 }
+
+// 일정이 그 날짜에 걸쳐 있는지 (여러 날 일정은 시작일~종료일, 하루짜리는 그날만)
+export const scheduleOn = (schedule, date) => schedule.date <= date && date <= (schedule.end_date || schedule.date)
+// 일정 날짜를 짧게: '3/21' 또는 '3/21~3/22'
+const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`
+export const scheduleDays = (schedule) => (schedule.end_date ? `${md(schedule.date)}~${md(schedule.end_date)}` : md(schedule.date))
