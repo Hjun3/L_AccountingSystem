@@ -78,97 +78,130 @@ function CalendarPage() {
   const cells = buildMonthCells(year, month)
   const todayString = toDateString(today.getFullYear(), today.getMonth(), today.getDate())
 
+  // 고른 날짜(일정 등록 날짜)의 일정·지출: 오른쪽 카드에 보여 준다
+  const daySchedules = schedules.filter((sc) => sc.date === form.date)
+  const dayExpenses = expenses.filter((exp) => exp.date === form.date)
+  const deleteButton = (sc) => (
+    <button
+      onClick={(e) => {
+        e.stopPropagation() // 삭제 버튼을 눌러도 날짜 선택은 되지 않게
+        deleteSchedule(sc)
+      }}
+      style={{ fontSize: 11, lineHeight: 1, width: 16, height: 16, padding: 0, verticalAlign: 'middle', flexShrink: 0 }}
+      title="일정 삭제"
+    >
+      ×
+    </button>
+  )
+
   return (
     <div>
       <h2>캘린더</h2>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p style={{ color: 'var(--bad)' }}>{error}</p>}
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
-        <button onClick={() => moveMonth(-1)}>◀ 이전 달</button>
-        <b style={{ fontSize: 18 }}>{year}년 {month + 1}월</b>
-        <button onClick={() => moveMonth(1)}>다음 달 ▶</button>
-        <span style={{ fontSize: 12, color: 'gray' }}>
-          날짜를 누르면 아래 일정 등록 날짜로 들어갑니다.
-        </span>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', border: '1px solid lightgray' }}>
-        {WEEKDAYS.map((w) => (
-          <div key={w} style={{ textAlign: 'center', fontWeight: 'bold', padding: 4, background: '#f3f3f3' }}>{w}</div>
-        ))}
-        {cells.map((date, i) => (
-          <div
-            key={i}
-            onClick={() => date && setForm({ ...form, date })}
-            style={{
-              minHeight: 90,
-              border: '1px solid #eee',
-              padding: 4,
-              fontSize: 12,
-              cursor: date ? 'pointer' : 'default',
-              background: date === form.date ? '#fffbe0' : 'white',
-            }}
-          >
-            {date && (
-              <>
-                <div style={{ fontWeight: date === todayString ? 'bold' : 'normal' }}>{Number(date.slice(8))}</div>
-                {schedules.filter((s) => s.date === date).map((s) => (
-                  <div key={'s' + s.id} style={{ color: KIND_COLORS[s.kind] }} title={s.memo}>
-                    [{s.kind}] {s.title}{' '}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation() // 삭제 버튼을 눌러도 날짜 선택은 되지 않게
-                        deleteSchedule(s)
-                      }}
-                      style={{ fontSize: 11, lineHeight: 1, width: 16, height: 16, padding: 0, verticalAlign: 'middle' }} title="일정 삭제"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                {expenses.filter((exp) => exp.date === date).map((exp) => (
-                  <div key={'e' + exp.id}>
-                    <Link
-                      to={`/expenses/${exp.id}`}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ color: STATUS_COLORS[exp.ai_status] }}
-                    >
-                      ● {exp.event_name} {exp.amount.toLocaleString()}원
-                    </Link>
-                  </div>
-                ))}
-              </>
-            )}
+      <div className="calendar-main">
+        {/* 왼쪽: 달력 */}
+        <section>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+            <button onClick={() => moveMonth(-1)} style={{ width: 32, padding: 0 }} title="이전 달">‹</button>
+            <b style={{ fontSize: 18, minWidth: 120, textAlign: 'center' }}>{year}년 {month + 1}월</b>
+            <button onClick={() => moveMonth(1)} style={{ width: 32, padding: 0 }} title="다음 달">›</button>
+            <span className="muted" style={{ marginLeft: 'auto' }}>날짜를 누르면 오른쪽에 그날 일정·지출이 보여요</span>
           </div>
-        ))}
-      </div>
-      <p style={{ fontSize: 12, color: 'gray' }}>
-        ● 지출 (색: <span style={{ color: STATUS_COLORS['적합'] }}>{STATUS_LABELS['적합']}</span> /{' '}
-        <span style={{ color: STATUS_COLORS['주의'] }}>{STATUS_LABELS['주의']}</span> /{' '}
-        <span style={{ color: STATUS_COLORS['위반'] }}>{STATUS_LABELS['위반']}</span>) · [사업] [감사] [기타] 일정
-      </p>
 
-      <h3>일정 등록</h3>
-      <form onSubmit={addSchedule} style={{ display: 'grid', gap: 8, maxWidth: 400 }}>
-        <label>
-          날짜 <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
-        </label>
-        <label>
-          종류{' '}
-          <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
-            <option>사업</option>
-            <option>감사</option>
-            <option>기타</option>
-          </select>
-        </label>
-        <label>
-          제목 <input placeholder="예: 1학기 정기감사 자료 제출 마감" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-        </label>
-        <label>
-          메모 <input value={form.memo} onChange={(e) => setForm({ ...form, memo: e.target.value })} />
-        </label>
-        <button type="submit">일정 추가</button>
-      </form>
+          <div className="cal-grid">
+            {WEEKDAYS.map((w, i) => (
+              <div key={w} className="cal-head" style={{ color: i === 0 ? 'var(--bad)' : undefined }}>{w}</div>
+            ))}
+            {cells.map((date, i) => (
+              <div
+                key={i}
+                onClick={() => date && setForm({ ...form, date })}
+                className={`cal-cell${date ? '' : ' empty'}${date === form.date ? ' picked' : ''}`}
+              >
+                {date && (
+                  <>
+                    <div className={date === todayString ? 'cal-today' : ''} style={{ marginBottom: 2 }}>{Number(date.slice(8))}</div>
+                    {schedules.filter((sc) => sc.date === date).map((sc) => (
+                      <div key={'s' + sc.id} className="cal-item" style={{ color: KIND_COLORS[sc.kind] }} title={sc.memo}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>[{sc.kind}] {sc.title}</span>
+                        {deleteButton(sc)}
+                      </div>
+                    ))}
+                    {expenses.filter((exp) => exp.date === date).map((exp) => (
+                      <div key={'e' + exp.id} className="cal-item">
+                        <Link
+                          to={`/expenses/${exp.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ color: STATUS_COLORS[exp.ai_status], overflow: 'hidden', textOverflow: 'ellipsis' }}
+                        >
+                          ● {exp.event_name} {exp.amount.toLocaleString()}원
+                        </Link>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="muted">
+            ● 지출 (색: <span style={{ color: STATUS_COLORS['적합'] }}>{STATUS_LABELS['적합']}</span> /{' '}
+            <span style={{ color: STATUS_COLORS['주의'] }}>{STATUS_LABELS['주의']}</span> /{' '}
+            <span style={{ color: STATUS_COLORS['위반'] }}>{STATUS_LABELS['위반']}</span>) · [사업] [감사] [기타] 일정
+          </p>
+        </section>
+
+        {/* 오른쪽: 고른 날짜의 일정·지출, 일정 등록 */}
+        <aside style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+          <section className="card" style={{ marginBottom: 0 }}>
+            <b>{Number(form.date.slice(5, 7))}월 {Number(form.date.slice(8))}일</b>
+            {daySchedules.length === 0 && dayExpenses.length === 0 ? (
+              <p className="muted">일정과 지출이 없습니다.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 8, marginTop: 10, fontSize: 13 }}>
+                {daySchedules.map((sc) => (
+                  <div key={'s' + sc.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: KIND_COLORS[sc.kind], flexShrink: 0 }}>{sc.kind}</span>
+                    <span style={{ flex: 1 }}>{sc.title}{sc.memo && <div className="muted">{sc.memo}</div>}</span>
+                    {deleteButton(sc)}
+                  </div>
+                ))}
+                {dayExpenses.map((exp) => (
+                  <Link key={'e' + exp.id} to={`/expenses/${exp.id}`} style={{ display: 'flex', gap: 8, color: 'var(--text)' }}>
+                    <span style={{ color: STATUS_COLORS[exp.ai_status], flexShrink: 0 }}>●</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>{exp.event_name} · <span className="muted">{exp.description}</span></span>
+                    <span className="tnum" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{exp.amount.toLocaleString()}원</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <form onSubmit={addSchedule} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
+            <b>일정 등록</b>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: 8 }}>
+              <label>
+                날짜 <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
+              </label>
+              <label>
+                종류
+                <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
+                  <option>사업</option>
+                  <option>감사</option>
+                  <option>기타</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              제목 <input placeholder="예: 1학기 정기감사 자료 제출 마감" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+            </label>
+            <label>
+              메모 <input placeholder="(선택)" value={form.memo} onChange={(e) => setForm({ ...form, memo: e.target.value })} />
+            </label>
+            <button type="submit">일정 추가</button>
+          </form>
+        </aside>
+      </div>
     </div>
   )
 }
