@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 import { api, canEdit, isAdmin, TermContext, UserContext } from './common'
+import AccountPage from './pages/AccountPage'
 import BankImportPage from './pages/BankImportPage'
 import BudgetPage from './pages/BudgetPage'
 import CalendarPage from './pages/CalendarPage'
@@ -49,12 +50,16 @@ function Sidebar({ user, onLogout, terms, termId, setTermId }) {
           </>
         )}
       </nav>
+      {/* 왼쪽 아래: 이름을 누르면 내 정보 화면 */}
       <div className="me">
-        <b>{user.display_name}</b> · {user.role_label}
-        <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
-          <NavLink to="/account" style={{ padding: 0, display: 'inline' }}>비밀번호 변경</NavLink>
-          <button onClick={onLogout} style={{ fontSize: 12, padding: '2px 8px' }}>로그아웃</button>
-        </div>
+        <NavLink to="/account" className="me-link" title="내 정보">
+          <span className="avatar small">{user.display_name.slice(0, 1)}</span>
+          <span style={{ minWidth: 0 }}>
+            <b>{user.display_name}</b>
+            <span style={{ display: 'block' }}>{user.role_label} · 내 정보</span>
+          </span>
+        </NavLink>
+        <button onClick={onLogout} style={{ fontSize: 12, height: 28, marginTop: 8, width: '100%' }}>로그아웃</button>
       </div>
     </aside>
   )
@@ -169,7 +174,7 @@ function App() {
             <Route path="/regulation" element={<RegulationPage />} />
             <Route path="/logs" element={<LogsPage />} />
             <Route path="/users" element={<UsersPage />} />
-            <Route path="/account" element={<PasswordPage onChanged={() => {}} />} />
+            <Route path="/account" element={<AccountPage onUserChanged={loadMe} />} />
           </Routes>
           </main>
         </div>

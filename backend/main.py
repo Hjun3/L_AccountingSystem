@@ -393,6 +393,8 @@ def create_expense(expense: ExpenseIn):
                 datetime.now().isoformat(timespec="seconds"),
             ),
         )
+        # 누가 등록했는지 기록 (내 정보 > 최근 활동, 관리자 기록 화면에서 보인다)
+        add_change_log(conn, cur.lastrowid, "지출 등록", expense.description[:60])
         row = conn.execute("SELECT * FROM expenses WHERE id = ?", (cur.lastrowid,)).fetchone()
         return to_dict(row, conn)
 
@@ -519,13 +521,28 @@ def delete_expense(expense_id: int, body: DeleteIn):
 
 @app.get("/logs")
 def list_logs():
-    """기록 화면용: 지출 수정·삭제, 증빙 첨부·삭제, 총무 결정 기록을 최신순으로 합쳐서 돌려준다."""
+    """기록 화면용 (관리자만): 지출 등록·수정·삭제, 증빙 첨부·삭제, 총무 결정 기록을 최신순으로 합쳐서 돌려준다."""
+    return collect_logs()
+
+
+@app.get("/me/activity")
+def my_activity():
+    """내 정보 화면용: 내가 한 기록만 최근 10개. 기록의 '한 사람'은 '이름(아이디)'로 남으므로 아이디로 찾는다."""
+    return collect_logs(actor_username=current_user.get()["username"])[:10]
+
+
+def collect_logs(actor_username=None):
+    # actor_username을 주면 그 사람이 한 기록만
+    where, params = "", ()
+    if actor_username:
+        tail = f"({actor_username})"  # 기록의 '한 사람'이 이 글자로 끝나면 내 기록
+        where, params = " WHERE substr(actor, -length(?)) = ?", (tail, tail)
     with get_conn() as conn:
         changes = conn.execute(
-            "SELECT id, expense_id, action, detail, created_at, actor FROM change_logs"
+            "SELECT id, expense_id, action, detail, created_at, actor FROM change_logs" + where, params
         ).fetchall()
         decisions = conn.execute(
-            "SELECT id, expense_id, from_status, to_status, explanation, created_at, actor FROM decision_logs"
+            "SELECT id, expense_id, from_status, to_status, explanation, created_at, actor FROM decision_logs" + where, params
         ).fetchall()
         expenses = {
             r["id"]: dict(r) for r in conn.execute("SELECT id, date, event_name, amount, description, deleted_at FROM expenses")

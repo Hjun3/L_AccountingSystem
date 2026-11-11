@@ -4,7 +4,7 @@ import { api } from '../common'
 import Pager, { paginate } from '../components/Pager'
 
 const PAGE_SIZE = 20 // 한 쪽에 보여 줄 기록 수
-const ACTIONS = ['전체', '지출 수정', '지출 삭제', '증빙 첨부', '증빙 삭제', '총무 결정']
+const ACTIONS = ['전체', '지출 등록', '지출 수정', '지출 삭제', '증빙 첨부', '증빙 삭제', '총무 결정']
 
 // 기록 화면: 지출 수정·삭제, 증빙 첨부·삭제, 총무 결정을 최신순으로 모아 본다.
 // 관리자만 볼 수 있다. (서버에서도 /logs는 관리자만 허용)

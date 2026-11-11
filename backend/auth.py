@@ -32,6 +32,7 @@ MIN_PASSWORD_LENGTH = 8
 MAX_FAILS, LOCK_SECONDS = 5, 300  # 비밀번호 5번 틀리면 5분 잠금
 
 # 지금 요청을 보낸 사용자. 기록(누가 했는지)을 남길 때 쓴다.
+current_session: ContextVar[str | None] = ContextVar("current_session", default=None)  # 지금 요청의 세션(해시)
 current_user: ContextVar[dict | None] = ContextVar("current_user", default=None)
 
 # 로그인 실패 횟수 {아이디: (실패 횟수, 마지막 실패 시각)} (서버를 껐다 켜면 초기화)
@@ -91,6 +92,11 @@ def init_auth_tables(conn):
         )
         """
     )
+    # 내 정보 > 로그인된 곳: 언제 로그인했는지, 어떤 브라우저인지, 마지막으로 쓴 때
+    columns = [c["name"] for c in conn.execute("PRAGMA table_info(sessions)")]
+    for col in ("created_at", "user_agent", "last_seen"):
+        if col not in columns:
+            conn.execute(f"ALTER TABLE sessions ADD COLUMN {col} TEXT")
 
 
 def create_user(conn, username, display_name, password, role, must_change=True):
@@ -115,6 +121,18 @@ def public_user(row) -> dict:
         "role": row["role"], "role_label": ROLES[row["role"]], "is_active": bool(row["is_active"]),
         "must_change_password": bool(row["must_change_password"]), "created_at": row["created_at"],
     }
+
+
+def device_name(user_agent: str | None) -> str:
+    """브라우저 정보 글자에서 '크롬 · Windows'처럼 짧은 이름을 만든다 (모르면 '알 수 없는 기기')"""
+    ua = user_agent or ""
+    browser = next((name for key, name in [("Whale", "웨일"), ("SamsungBrowser", "삼성 인터넷"), ("Edg", "엣지"),
+                                            ("Firefox", "파이어폭스"), ("Chrome", "크롬"), ("Safari", "사파리")] if key in ua), "")
+    system = next((name for key, name in [("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"),
+                                           ("Windows", "Windows"), ("Mac OS", "Mac"), ("Linux", "Linux")] if key in ua), "")
+    if not ua:
+        return "기기 정보 없음 (예전 로그인)"  # 기기 정보를 저장하기 전에 로그인한 것
+    return " · ".join(x for x in (browser, system) if x) or "알 수 없는 기기"
 
 
 # ---------- 요청마다 로그인·권한 확인 (미들웨어) ----------
@@ -147,11 +165,15 @@ async def auth_middleware(request: Request, call_next):
     if token:
         with get_conn() as conn:
             row = conn.execute(
-                "SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id "
+                "SELECT u.*, s.last_seen FROM sessions s JOIN users u ON u.id = s.user_id "
                 "WHERE s.token = ? AND s.expires_at > ? AND u.is_active = 1",
                 (token_hash(token), now_text()),
             ).fetchone()
             user = public_user(row) if row else None
+            # '마지막 사용' 시각: 매 요청마다 쓰면 DB 쓰기가 많아서 5분에 한 번만 고친다
+            five_min_ago = (datetime.now() - timedelta(minutes=5)).isoformat(timespec="seconds")
+            if row and (row["last_seen"] or "") < five_min_ago:
+                conn.execute("UPDATE sessions SET last_seen = ? WHERE token = ?", (now_text(), token_hash(token)))
     if user is None:
         return _deny(401, "로그인이 필요합니다.")
 
@@ -164,6 +186,7 @@ async def auth_middleware(request: Request, call_next):
         return _deny(403, f"권한이 없습니다. ({user['role_label']} 계정)")
 
     current_user.set(user)
+    current_session.set(token_hash(token))
     return await call_next(request)
 
 
@@ -178,7 +201,7 @@ class LoginIn(BaseModel):
 
 
 @router.post("/auth/login")
-def login(body: LoginIn, response: Response):
+def login(body: LoginIn, request: Request, response: Response):
     username = body.username.strip()
     fails, last = _failed_logins.get(username, (0, 0))
     if fails >= MAX_FAILS and time.time() - last < LOCK_SECONDS:
@@ -194,7 +217,10 @@ def login(body: LoginIn, response: Response):
         token = secrets.token_urlsafe(32)
         expires = (datetime.now() + timedelta(days=SESSION_DAYS)).isoformat(timespec="seconds")
         conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (now_text(),))  # 만료된 세션 정리
-        conn.execute("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)", (token_hash(token), row["id"], expires))
+        conn.execute(
+            "INSERT INTO sessions (token, user_id, expires_at, created_at, user_agent, last_seen) VALUES (?, ?, ?, ?, ?, ?)",
+            (token_hash(token), row["id"], expires, now_text(), (request.headers.get("user-agent") or "")[:300], now_text()),
+        )
     response.set_cookie(
         COOKIE_NAME, token, max_age=SESSION_DAYS * 86400,
         httponly=True,  # 자바스크립트에서 쿠키를 못 읽게 함 (해킹된 스크립트가 토큰을 훔치지 못하게)
@@ -236,6 +262,60 @@ def change_password(body: PasswordIn, request: Request):
         )
         # 다른 기기에 로그인된 세션은 끊는다 (지금 쓰는 세션만 남김)
         conn.execute("DELETE FROM sessions WHERE user_id = ? AND token != ?", (user["id"], token_hash(request.cookies.get(COOKIE_NAME))))
+    return {"ok": True}
+
+
+# ---------- 내 정보 (모든 역할이 자기 것만) ----------
+
+class MeIn(BaseModel):
+    display_name: str
+
+
+@router.patch("/auth/me")
+def update_me(body: MeIn):
+    """내 이름 바꾸기. 기록에는 그때의 이름(아이디)이 남으므로 예전 기록은 예전 이름 그대로 보인다."""
+    name = body.display_name.strip()
+    if not 1 <= len(name) <= 20:
+        raise HTTPException(status_code=400, detail="이름은 1~20자로 입력하세요.")
+    user = current_user.get()
+    with get_conn() as conn:
+        conn.execute("UPDATE users SET display_name = ? WHERE id = ?", (name, user["id"]))
+        return public_user(conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone())
+
+
+@router.get("/auth/sessions")
+def my_sessions():
+    """로그인된 곳 목록 (내 것만). id는 세션 값의 앞 12자리라 이것만으로는 로그인할 수 없다."""
+    user, mine = current_user.get(), current_session.get()
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT token, created_at, user_agent, last_seen FROM sessions WHERE user_id = ? AND expires_at > ? "
+            "ORDER BY (token = ?) DESC, COALESCE(last_seen, created_at) DESC",
+            (user["id"], now_text(), mine),
+        ).fetchall()
+    return [{"id": r["token"][:12], "device": device_name(r["user_agent"]), "created_at": r["created_at"],
+             "last_seen": r["last_seen"], "current": r["token"] == mine} for r in rows]
+
+
+@router.post("/auth/sessions/logout-others")
+def logout_other_sessions():
+    """지금 이 기기만 남기고 다른 곳의 로그인을 모두 끊는다"""
+    user = current_user.get()
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM sessions WHERE user_id = ? AND token != ?", (user["id"], current_session.get()))
+    return {"logged_out": cur.rowcount}
+
+
+@router.delete("/auth/sessions/{session_id}")
+def logout_one_session(session_id: str):
+    """로그인된 곳 하나 끊기 (내 세션만, 지금 기기는 '로그아웃' 버튼으로)"""
+    user = current_user.get()
+    if current_session.get().startswith(session_id):
+        raise HTTPException(status_code=400, detail="지금 이 기기는 왼쪽 아래 '로그아웃'으로 나가세요.")
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM sessions WHERE user_id = ? AND substr(token, 1, 12) = ?", (user["id"], session_id))
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="해당 로그인을 찾을 수 없습니다.")
     return {"ok": True}
 
 

@@ -218,3 +218,30 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .regulation-body h4 { font-size: 14px; margin: 20px 0 4px; scroll-margin-top: 16px; }
 .regulation-body p { margin: 2px 0; color: var(--sub); }
 @media (max-width: 900px) { .regulation-main { grid-template-columns: minmax(0, 1fr); } .regulation-toc { position: static; max-height: 240px; } }
+
+/* 내 정보: 왼쪽 구역 목차, 오른쪽 구역 카드. 각 줄은 '항목 | 값 | 버튼' */
+.account-main { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 24px; align-items: start; }
+.account-nav { position: sticky; top: 16px; display: grid; gap: 2px; }
+.account-nav button { all: unset; cursor: pointer; padding: 8px 10px; border-radius: var(--r-sm); font-size: 14px; color: var(--sub); }
+.account-nav button:hover { background: #eceef1; color: var(--text); }
+.account-section { margin-bottom: 0; padding: 20px 24px; scroll-margin-top: 16px; }
+.account-section h3 { margin: 0 0 8px; }
+.account-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
+.account-row:first-of-type { border-top: none; }
+.avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-size: 24px; font-weight: 700; flex-shrink: 0; }
+.session-icon { font-size: 22px; text-align: center; }
+#sessions .account-row { grid-template-columns: 40px minmax(0, 1fr) auto; }
+.badge-current { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--ok); background: #e6f4ea; padding: 2px 8px; border-radius: 10px; }
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline li { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.timeline li:first-child { border-top: none; }
+@media (max-width: 760px) {
+  .account-main { grid-template-columns: minmax(0, 1fr); }
+  .account-nav { position: static; display: flex; flex-wrap: wrap; }
+  .account-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .account-row > :first-child { grid-column: 1 / -1; }
+  .timeline li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+.avatar.small { width: 32px; height: 32px; font-size: 14px; }
+.sidebar .me .me-link { display: flex; align-items: center; gap: 10px; padding: 6px; margin: 0 -6px; border-radius: var(--r-sm); color: var(--muted); text-decoration: none; }
+.sidebar .me .me-link:hover, .sidebar .me .me-link.active { background: #f2f4f6; }
