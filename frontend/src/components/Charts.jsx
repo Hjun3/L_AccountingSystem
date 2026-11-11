@@ -60,8 +60,10 @@ export function BudgetBars({ rows }) {
   )
 }
 
-// 월별 세로 막대: rows = [{ month: '2026-03', value }]
-export function MonthBars({ rows }) {
+// 월별 세로 막대: rows = [{ month: '2026-03', value }]. unit을 주면 금액 대신 '3건'처럼 보여 준다
+export function MonthBars({ rows, unit }) {
+  const label = (v) => (unit ? `${v}${unit}` : shortWon(v))
+  const full = (v) => (unit ? `${v}${unit}` : won(v))
   if (rows.length === 0) return <p className="muted">지출이 없습니다.</p>
   const max = Math.max(...rows.map((r) => r.value), 1)
   const HEIGHT = 140
@@ -69,8 +71,8 @@ export function MonthBars({ rows }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: HEIGHT + 20, borderBottom: '1px solid var(--line-strong)' }}>
         {rows.map((r) => (
-          <div key={r.month} title={`${r.month}: ${won(r.value)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-            <span className="tnum muted" style={{ marginBottom: 4 }}>{r.value ? shortWon(r.value) : ''}</span>
+          <div key={r.month} title={`${r.month}: ${full(r.value)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+            <span className="tnum muted" style={{ marginBottom: 4 }}>{r.value ? label(r.value) : ''}</span>
             <div style={{ width: '60%', maxWidth: 36, height: Math.max((r.value / max) * HEIGHT, r.value ? 3 : 0), background: 'var(--primary)', borderRadius: '4px 4px 0 0' }} />
           </div>
         ))}

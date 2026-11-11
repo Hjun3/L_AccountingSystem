@@ -336,7 +336,11 @@ FINAL_LABELS = {"대기": "대기", "확정": "확정", "소명": "확정"}
 def actor_name():
     """지금 요청한 사용자 이름 (기록용). 스크립트에서 실행하면 '시스템'."""
     user = current_user.get()
-    return f"{user['display_name']}({user['username']})" if user else "시스템"
+    if not user:
+        return "시스템"
+    # 예: '총무 김철수(chulsoo)'. 끝의 '(아이디)'로 내 기록을 찾으므로 이 모양은 바꾸지 않는다
+    position = f"{user['position']} " if user.get("position") else ""
+    return f"{position}{user['display_name']}({user['username']})"
 
 
 def add_change_log(conn, expense_id, action, detail=""):
@@ -527,8 +531,9 @@ def list_logs():
 
 @app.get("/me/activity")
 def my_activity():
-    """내 정보 화면용: 내가 한 기록만 최근 50개 (화면에서 5개씩 나눠 봄). 기록의 '한 사람'은 '이름(아이디)'로 남으므로 아이디로 찾는다."""
-    return collect_logs(actor_username=current_user.get()["username"])[:50]
+    """내 정보 화면용: 내가 한 기록 (최신순, 최대 1000개). 화면에서 활동 요약을 계산하고 최근 활동은 5개씩 나눠 본다.
+    기록의 '한 사람'은 '이름(아이디)'로 남으므로 아이디로 찾는다."""
+    return collect_logs(actor_username=current_user.get()["username"])[:1000]
 
 
 def collect_logs(actor_username=None):

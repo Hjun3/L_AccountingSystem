@@ -92,6 +92,9 @@ def init_auth_tables(conn):
         )
         """
     )
+    # 직책 (예: 총무, 회장). 역할(권한)과 별개로 실제 맡은 일을 적는다. 비어 있어도 됨
+    if "position" not in [c["name"] for c in conn.execute("PRAGMA table_info(users)")]:
+        conn.execute("ALTER TABLE users ADD COLUMN position TEXT")
     # 내 정보 > 로그인된 곳: 언제 로그인했는지, 어떤 브라우저인지, 마지막으로 쓴 때
     columns = [c["name"] for c in conn.execute("PRAGMA table_info(sessions)")]
     for col in ("created_at", "user_agent", "last_seen"):
@@ -118,6 +121,7 @@ def public_user(row) -> dict:
     """비밀번호 해시를 뺀, 화면에 보내도 되는 사용자 정보"""
     return {
         "id": row["id"], "username": row["username"], "display_name": row["display_name"],
+        "position": row["position"] or "",
         "role": row["role"], "role_label": ROLES[row["role"]], "is_active": bool(row["is_active"]),
         "must_change_password": bool(row["must_change_password"]), "created_at": row["created_at"],
     }
@@ -268,18 +272,25 @@ def change_password(body: PasswordIn, request: Request):
 # ---------- 내 정보 (모든 역할이 자기 것만) ----------
 
 class MeIn(BaseModel):
-    display_name: str
+    display_name: str | None = None
+    position: str | None = None  # 직책 (빈 글자면 지움)
 
 
 @router.patch("/auth/me")
 def update_me(body: MeIn):
-    """내 이름 바꾸기. 기록에는 그때의 이름(아이디)이 남으므로 예전 기록은 예전 이름 그대로 보인다."""
-    name = body.display_name.strip()
-    if not 1 <= len(name) <= 20:
-        raise HTTPException(status_code=400, detail="이름은 1~20자로 입력하세요.")
+    """내 이름·직책 바꾸기. 기록에는 그때의 이름·직책이 남으므로 예전 기록은 예전 것 그대로 보인다."""
     user = current_user.get()
     with get_conn() as conn:
-        conn.execute("UPDATE users SET display_name = ? WHERE id = ?", (name, user["id"]))
+        if body.display_name is not None:
+            name = body.display_name.strip()
+            if not 1 <= len(name) <= 20:
+                raise HTTPException(status_code=400, detail="이름은 1~20자로 입력하세요.")
+            conn.execute("UPDATE users SET display_name = ? WHERE id = ?", (name, user["id"]))
+        if body.position is not None:
+            position = body.position.strip()
+            if len(position) > 15:
+                raise HTTPException(status_code=400, detail="직책은 15자 이내로 입력하세요.")
+            conn.execute("UPDATE users SET position = ? WHERE id = ?", (position, user["id"]))
         return public_user(conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone())
 
 

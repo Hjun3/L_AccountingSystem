@@ -55,7 +55,7 @@ function Sidebar({ user, onLogout, terms, termId, setTermId }) {
         <NavLink to="/account" className="me-link" title="내 정보">
           <span className="avatar small">{user.display_name.slice(0, 1)}</span>
           <span style={{ minWidth: 0 }}>
-            <b>{user.display_name}</b>
+            <b>{user.position && <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{user.position} </span>}{user.display_name}</b>
             <span style={{ display: 'block' }}>{user.role_label} · 내 정보</span>
           </span>
         </NavLink>

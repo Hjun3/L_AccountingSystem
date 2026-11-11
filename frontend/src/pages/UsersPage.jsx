@@ -86,13 +86,14 @@ function UsersPage() {
       <div className="table-box">
       <table>
         <thead>
-          <tr><th>아이디</th><th>이름</th><th>역할</th><th>상태</th><th></th></tr>
+          <tr><th>아이디</th><th>이름</th><th>직책</th><th>역할</th><th>상태</th><th></th></tr>
         </thead>
         <tbody>
           {users.map((u) => (
             <tr key={u.id} style={{ color: u.is_active ? 'inherit' : 'var(--muted)' }}>
               <td>{u.username}{u.id === me.id && <span className="muted"> (나)</span>}</td>
               <td>{u.display_name}</td>
+              <td>{u.position || <span className="muted">-</span>}</td>
               <td>
                 <select value={u.role} onChange={(e) => changeRole(u, e.target.value)} style={{ height: 30 }}>
                   {ROLE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}

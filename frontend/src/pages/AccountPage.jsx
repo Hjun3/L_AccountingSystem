@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, isAdmin, useUser } from '../common'
+import { api, isAdmin, useTerm, useUser } from '../common'
+import { MonthBars } from '../components/Charts'
 import Pager, { paginate } from '../components/Pager'
 import PasswordPage from './PasswordPage'
 
@@ -33,14 +34,56 @@ function Row({ label, children, action }) {
   )
 }
 
-const SECTIONS = [['profile', '프로필'], ['security', '보안'], ['sessions', '로그인된 곳'], ['activity', '최근 활동']]
+// 그 자리에서 고치는 줄: [변경] → 입력칸 + 저장/취소 (이름·직책에 같이 씀)
+function EditableRow({ label, value, placeholder, maxLength, allowEmpty = false, onSave, hint }) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(value)
+  async function submit(e) {
+    e.preventDefault()
+    if (await onSave(text.trim())) setEditing(false)
+  }
+  return (
+    <Row label={label} action={!editing && <button onClick={() => { setText(value); setEditing(true) }}>{value ? '변경' : '입력'}</button>}>
+      {editing ? (
+        <form onSubmit={submit} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <input value={text} maxLength={maxLength} placeholder={placeholder} onChange={(e) => setText(e.target.value)} autoFocus style={{ flex: 1, minWidth: 140 }} />
+          <button type="submit" disabled={(!allowEmpty && !text.trim()) || text.trim() === value}>저장</button>
+          <button type="button" onClick={() => setEditing(false)}>취소</button>
+        </form>
+      ) : (
+        <>
+          {value ? <b>{value}</b> : <span className="muted">{placeholder}</span>}
+          {hint && <div className="muted">{hint}</div>}
+        </>
+      )}
+    </Row>
+  )
+}
+
+// 막대에 보여 줄 달 목록: 임기를 골랐으면 임기 첫 달 ~ (이번 달과 임기 마지막 달 중 빠른 달), 아니면 기록이 있는 달만
+function monthRange(term, counts) {
+  if (!term) return Object.keys(counts).sort()
+  const thisMonth = new Date().toLocaleDateString('sv').slice(0, 7)
+  const last = term.end_date.slice(0, 7) < thisMonth ? term.end_date.slice(0, 7) : thisMonth
+  const months = []
+  let [y, m] = term.start_date.slice(0, 7).split('-').map(Number)
+  for (let i = 0; i < 24; i++) {
+    const key = `${y}-${String(m).padStart(2, '0')}`
+    if (key > last) break
+    months.push(key)
+    m += 1
+    if (m > 12) { m = 1; y += 1 }
+  }
+  return months
+}
+
+const SECTIONS = [['profile', '프로필'], ['summary', '내 활동'], ['sessions', '로그인된 곳'], ['activity', '최근 활동']]
 const PAGE_SIZE = 5 // 로그인된 곳·최근 활동을 한 쪽에 몇 개씩
 
 // 내 정보 화면: 프로필(이름 바꾸기), 보안(비밀번호), 로그인된 곳(다른 기기 로그아웃), 최근 활동
 function AccountPage({ onUserChanged }) {
   const user = useUser()
-  const [editingName, setEditingName] = useState(false)
-  const [name, setName] = useState(user.display_name)
+  const { terms, termId } = useTerm() // 왼쪽 메뉴에서 고른 임기 (내 활동 요약 기준)
   const [changingPassword, setChangingPassword] = useState(false)
   const [sessions, setSessions] = useState([])
   const [activity, setActivity] = useState(null)
@@ -89,13 +132,19 @@ function AccountPage({ onUserChanged }) {
     }
   }
 
-  const saveName = (e) => {
-    e.preventDefault()
-    run(async () => {
-      await api('/auth/me', { method: 'PATCH', body: JSON.stringify({ display_name: name }) })
-      setEditingName(false)
+  // 이름·직책 저장 (성공하면 true)
+  async function saveMe(field, value, doneText) {
+    setError('')
+    setMessage('')
+    try {
+      await api('/auth/me', { method: 'PATCH', body: JSON.stringify({ [field]: value }) })
       onUserChanged()
-    }, '이름을 바꿨습니다. 앞으로 남는 기록에는 새 이름이 쓰입니다.')
+      setMessage(doneText)
+      return true
+    } catch (e) {
+      setError(e.message)
+      return false
+    }
   }
 
   const logoutOne = (s) => {
@@ -115,6 +164,22 @@ function AccountPage({ onUserChanged }) {
     }, '다른 기기의 로그인을 모두 끊었습니다.')
   }
 
+  // 내 활동 요약: 고른 임기 날짜 안에서 내가 남긴 기록을 종류별로 센다 ('전체 임기'면 전체)
+  const term = terms.find((t) => t.id === termId)
+  const inTerm = (activity || []).filter((a) => !term || (term.start_date <= a.created_at.slice(0, 10) && a.created_at.slice(0, 10) <= term.end_date))
+  const registeredLogs = inTerm.filter((a) => a.action === '지출 등록')
+  const monthCount = {}
+  for (const a of registeredLogs) monthCount[a.created_at.slice(0, 7)] = (monthCount[a.created_at.slice(0, 7)] || 0) + 1
+  const summary = {
+    termName: term ? term.name : '전체 임기',
+    registered: registeredLogs.length,
+    registeredAmount: registeredLogs.reduce((n, a) => n + (a.expense && !a.expense.deleted_at ? a.expense.amount : 0), 0),
+    confirmed: inTerm.filter((a) => a.action === '총무 결정' && a.detail.includes('→ 확정')).length,
+    attached: inTerm.filter((a) => a.action === '증빙 첨부').length,
+    edited: inTerm.filter((a) => a.action === '지출 수정' || a.action === '지출 삭제').length,
+    months: monthRange(term, monthCount).map((m) => ({ month: m, value: monthCount[m] || 0 })),
+  }
+
   const others = sessions.filter((s) => !s.current)
   const sessionView = paginate(sessions, sessionPage, PAGE_SIZE)
   const activityView = paginate(activity || [], activityPage, PAGE_SIZE)
@@ -131,6 +196,7 @@ function AccountPage({ onUserChanged }) {
         <aside className="account-side">
           <div className="card" style={{ marginBottom: 0, textAlign: 'center', padding: '24px 16px' }}>
             <div className="avatar" style={{ margin: '0 auto 10px', width: 64, height: 64, fontSize: 28 }}>{user.display_name.slice(0, 1)}</div>
+            {user.position && <div style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 13 }}>{user.position}</div>}
             <b style={{ fontSize: 17 }}>{user.display_name}</b>
             <div className="muted">{user.username}</div>
             <span className="role-chip">{user.role_label}</span>
@@ -146,33 +212,18 @@ function AccountPage({ onUserChanged }) {
           {/* 프로필 */}
           <section id="profile" className="card account-section">
             <h3>프로필</h3>
-            <Row
-              label="이름"
-              action={!editingName && <button onClick={() => { setName(user.display_name); setEditingName(true) }}>변경</button>}
-            >
-              {editingName ? (
-                <form onSubmit={saveName} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <input value={name} maxLength={20} onChange={(e) => setName(e.target.value)} autoFocus style={{ flex: 1, minWidth: 140 }} />
-                  <button type="submit" disabled={!name.trim() || name.trim() === user.display_name}>저장</button>
-                  <button type="button" onClick={() => setEditingName(false)}>취소</button>
-                </form>
-              ) : (
-                <b>{user.display_name}</b>
-              )}
-            </Row>
+            <EditableRow label="이름" value={user.display_name} maxLength={20}
+              onSave={(v) => saveMe('display_name', v, '이름을 바꿨습니다. 앞으로 남는 기록에는 새 이름이 쓰입니다.')} />
+            <EditableRow label="직책" value={user.position} placeholder="예: 총무, 회장, 사무국장" maxLength={15} allowEmpty
+              hint="이름 앞에 붙어 기록에도 함께 남아요 (예: 총무 김철수)"
+              onSave={(v) => saveMe('position', v, v ? `직책을 '${v}'(으)로 정했습니다.` : '직책을 지웠습니다.')} />
             <Row label="아이디">
               {user.username} <span className="muted">· 아이디는 바꿀 수 없어요</span>
             </Row>
             <Row label="역할">
               {user.role_label} <span className="muted">· {ROLE_HELP[user.role]}</span>
-              {!isAdmin(user) && <div className="muted">역할은 관리자가 바꿀 수 있어요.</div>}
+              {!isAdmin(user) && <div className="muted">역할(할 수 있는 일)은 관리자가 바꿀 수 있어요.</div>}
             </Row>
-            <Row label="계정 만든 날">{(user.created_at || '').slice(0, 10)}</Row>
-          </section>
-
-          {/* 보안 */}
-          <section id="security" className="card account-section">
-            <h3>보안</h3>
             <Row label="비밀번호" action={!changingPassword && <button onClick={() => setChangingPassword(true)}>변경</button>}>
               {changingPassword ? (
                 <>
@@ -183,6 +234,28 @@ function AccountPage({ onUserChanged }) {
                 <span style={{ letterSpacing: 2 }}>••••••••</span>
               )}
             </Row>
+            <Row label="계정 만든 날">{(user.created_at || '').slice(0, 10)}</Row>
+          </section>
+
+          {/* 내 활동 요약: 고른 임기 동안 내가 한 일 */}
+          <section id="summary" className="card account-section">
+            <h3>내 활동 <span className="muted" style={{ fontWeight: 400 }}>{summary.termName}</span></h3>
+            <div className="tnum" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, margin: '8px 0 16px' }}>
+              {[
+                ['지출 등록', `${summary.registered}건`, `${summary.registeredAmount.toLocaleString()}원`],
+                ['확정', `${summary.confirmed}건`, '총무 결정'],
+                ['증빙 첨부', `${summary.attached}건`, '사진·PDF'],
+                ['수정·삭제', `${summary.edited}건`, '지출 정보'],
+              ].map(([label, value, sub]) => (
+                <div key={label} style={{ background: '#fafbfc', borderRadius: 'var(--r-sm)', padding: '12px 14px' }}>
+                  <div className="muted">{label}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{value}</div>
+                  <div className="muted">{sub}</div>
+                </div>
+              ))}
+            </div>
+            <div className="muted" style={{ marginBottom: 6 }}>월별 지출 등록 건수</div>
+            {summary.months.length ? <MonthBars rows={summary.months} unit="건" /> : <p className="muted">이 기간에 등록한 지출이 없어요.</p>}
           </section>
 
           {/* 로그인된 곳 */}
@@ -209,7 +282,7 @@ function AccountPage({ onUserChanged }) {
           {/* 최근 활동 */}
           <section id="activity" className="card account-section">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <h3>최근 활동 {activity?.length > 0 && <span className="muted" style={{ fontWeight: 400 }}>최근 {activity.length}개</span>}</h3>
+              <h3>최근 활동 {activity?.length > 0 && <span className="muted" style={{ fontWeight: 400 }}>전체 {activity.length}개</span>}</h3>
               {isAdmin(user) && <Link to="/logs" className="muted">전체 기록</Link>}
             </div>
             {activity === null ? (
