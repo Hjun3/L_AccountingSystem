@@ -57,6 +57,24 @@ function ExpenseDetailPage() {
   const navigate = useNavigate()
   const user = useUser()
 
+  const [checking, setChecking] = useState(false)
+  const [checkError, setCheckError] = useState('')
+
+  // '점검 못 함' 지출을 AI로 한 번 더 점검한다 (지금 지출 정보 기준)
+  async function recheck() {
+    setCheckError('')
+    setChecking(true)
+    try {
+      const updated = await api(`/expenses/${expense.id}/check`, { method: 'POST' })
+      if (updated.ai_status === '미점검') setCheckError('이번에도 점검하지 못했어요. 잠시 뒤 다시 시도하세요.')
+      await loadExpense()
+    } catch (e) {
+      setCheckError(e.message)
+    } finally {
+      setChecking(false)
+    }
+  }
+
   async function loadExpense() {
     try {
       setExpense(await api(`/expenses/${id}`))
@@ -140,10 +158,21 @@ function ExpenseDetailPage() {
       <div>
       <div className="card">
       <h3 style={{ marginTop: 0 }}>AI 점검 (참고용)</h3>
-      {expense.updated_at && (
-        <p style={{ fontSize: 12, color: 'darkorange' }}>※ 등록 후 지출 정보가 수정되었습니다. 아래 점검 결과는 수정 전 내용 기준입니다.</p>
+      {expense.updated_at && expense.ai_status !== '미점검' && (
+        <p style={{ fontSize: 12, color: 'var(--warn)' }}>※ 등록 후 지출 정보가 수정되었습니다. 아래 점검 결과는 수정 전 내용 기준입니다.</p>
       )}
       <p style={{ fontSize: 18 }}><StatusBadge status={expense.ai_status} /></p>
+      {expense.ai_status === '미점검' ? (
+        // AI 점검이 실패한 채 저장된 지출: 이유를 보여 주고, 한 번 더 점검할 수 있다 (성공하면 버튼은 사라짐)
+        <>
+          <p style={{ color: 'var(--sub)' }}>{expense.ai_reason}</p>
+          {!deleted && canEdit(user) && (
+            <button type="submit" onClick={recheck} disabled={checking}>{checking ? 'AI가 점검하는 중...' : 'AI 점검 다시 하기'}</button>
+          )}
+          {checkError && <p style={{ color: 'var(--bad)' }}>{checkError}</p>}
+        </>
+      ) : (
+      <>
       <p>
         <b>근거 조항:</b> {expense.ai_clause} (<Link to="/regulation">규정 보기</Link>)
       </p>
@@ -155,6 +184,8 @@ function ExpenseDetailPage() {
           <b>챙길 것</b>
           <TodoList expense={expense} onChanged={loadExpense} />
         </>
+      )}
+      </>
       )}
       </div>
 

@@ -4,7 +4,7 @@ import { createContext, useContext } from 'react'
 export const API_URL = 'http://localhost:8000'
 
 // AI 점검 결과별 글자색 (한눈에 구분되도록)
-export const STATUS_COLORS = { 적합: '#1e8e3e', 주의: '#b26a00', 위반: '#d22d2d' }
+export const STATUS_COLORS = { 적합: '#1e8e3e', 주의: '#b26a00', 위반: '#d22d2d', 미점검: '#8b95a1' }
 
 // 지금 로그인한 사용자 정보를 모든 페이지에서 꺼내 쓰기 위한 통로 (App.jsx에서 값을 넣음)
 export const UserContext = createContext(null)
@@ -20,13 +20,14 @@ export const useTerm = () => useContext(TermContext)
 export const termQuery = (termId) => (termId ? `?term_id=${termId}` : '')
 
 // AI 점검 결과를 화면에 보여줄 이름. 저장값(적합/주의/위반)은 그대로 두고 표시만 동료 말투로 바꾼다.
-export const STATUS_LABELS = { 적합: '문제 없음', 주의: '확인 필요', 위반: '조치 필요' }
+export const STATUS_LABELS = { 적합: '문제 없음', 주의: '확인 필요', 위반: '조치 필요', 미점검: '점검 못 함' }
+// 미점검: AI 점검이 실패한 채 저장된 지출 (상세 화면에서 한 번 더 점검할 수 있다)
 // 총무 결정을 화면에 보여줄 이름. 결정은 대기/확정 두 가지 (예전 기록의 '소명'은 메모를 남긴 확정과 같아 '확정'으로 보여준다)
 export const FINAL_LABELS = { 대기: '대기', 확정: '확정', 소명: '확정' }
 export const finalLabel = (status) => FINAL_LABELS[status] || status
 
 // 배지(동그란 표시) 바탕색
-export const STATUS_BG = { 적합: '#e6f4ea', 주의: '#fff3e0', 위반: '#fdecea' }
+export const STATUS_BG = { 적합: '#e6f4ea', 주의: '#fff3e0', 위반: '#fdecea', 미점검: '#f2f4f6' }
 
 // 비목 목록 (감사자료에서 확인한 학생회 비목). 입력칸 자동완성에 쓴다.
 export const CATEGORIES = ['수용비', '급량비', '상품비', '대여비', '환급비', '보조비', '활동비', '교통비', '기타']

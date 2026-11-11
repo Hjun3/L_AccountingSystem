@@ -356,13 +356,19 @@ def get_active_expense(conn, expense_id):
     return row
 
 
+def unchecked_result(error: AICheckError) -> dict:
+    """AI 점검에 실패했을 때 저장할 값: '미점검' + 실패 이유 (지출 저장은 막지 않는다)"""
+    return {"status": "미점검", "clause": "", "reason": f"AI 점검을 하지 못했어요. ({str(error)[:200]})", "todos": []}
+
+
 @app.post("/expenses")
 def create_expense(expense: ExpenseIn):
-    # 저장 전에 AI 점검을 먼저 한다. 실패하면 저장하지 않고 에러를 돌려준다.
+    # 저장 전에 AI 점검을 한다. AI가 실패해도(서버 장애, 잔액 부족 등) 지출은 '미점검'으로 저장한다.
+    # 장부 기록이 AI 때문에 막히지 않게 하기 위해서다. 미점검 지출은 상세 화면에서 한 번 더 점검할 수 있다.
     try:
         result = check_expense(expense.model_dump())
     except AICheckError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        result = unchecked_result(e)
 
     with get_conn() as conn:
         cur = conn.execute(
@@ -391,6 +397,30 @@ def create_expense(expense: ExpenseIn):
         return to_dict(row, conn)
 
 
+@app.post("/expenses/{expense_id}/check")
+def recheck_expense(expense_id: int):
+    """'미점검'(AI 점검 실패) 지출만 AI 점검을 한 번 더 한다. 이미 점검된 지출은 비용 때문에 다시 점검하지 않는다."""
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL", (expense_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="해당 지출을 찾을 수 없습니다.")
+        if row["ai_status"] != "미점검":
+            raise HTTPException(status_code=400, detail="이미 AI 점검을 받은 지출입니다.")
+        data = {k: row[k] for k in ("date", "amount", "event_name", "category", "description")}
+        data["has_receipt"] = bool(row["has_receipt"])
+    try:
+        result = check_expense(data)
+    except AICheckError as e:
+        result = unchecked_result(e)
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE expenses SET ai_status = ?, ai_clause = ?, ai_reason = ?, ai_todos = ? WHERE id = ?",
+            (result["status"], result["clause"], result["reason"],
+             json.dumps([{"text": t, "done": False} for t in result.get("todos", [])], ensure_ascii=False), expense_id),
+        )
+        return to_dict(conn.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)).fetchone(), conn)
+
+
 class DecisionIn(BaseModel):
     """총무의 결정: 확정 또는 대기(= 결정 취소). memo를 주면 지출 메모도 함께 저장한다."""
     final_status: Literal["확정", "대기"]
@@ -405,7 +435,7 @@ def decide_expense(expense_id: int, decision: DecisionIn):
         if decision.memo is not None:
             memo = decision.memo.strip()
         # AI가 '확인 필요'·'조치 필요'라고 한 지출은 메모(왜 넘어가는지)가 있어야 확정할 수 있다
-        if decision.final_status == "확정" and old["ai_status"] in ("주의", "위반") and not memo:
+        if decision.final_status == "확정" and old["ai_status"] in ("주의", "위반", "미점검") and not memo:
             raise HTTPException(status_code=400, detail="확인·조치가 필요한 지출은 메모를 남겨야 확정할 수 있어요.")
         conn.execute(
             "UPDATE expenses SET final_status = ?, memo = ? WHERE id = ?",

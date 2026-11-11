@@ -98,7 +98,7 @@ function DashboardPage() {
   const countOf = (status) => expenses.filter((exp) => exp.ai_status === status).length
   const waiting = expenses.filter((exp) => exp.final_status === '대기')
   // 주의/위반인데 아직 총무가 결정하지 않은 건
-  const needCheck = waiting.filter((exp) => exp.ai_status === '주의' || exp.ai_status === '위반')
+  const needCheck = waiting.filter((exp) => ['주의', '위반', '미점검'].includes(exp.ai_status))
   // 아직 끝내지 않은 '챙길 것'이 있는 지출
   const withTodos = expenses.filter((exp) => exp.ai_todos.some((t) => !t.done))
   const todoCount = withTodos.reduce((n, exp) => n + exp.ai_todos.filter((t) => !t.done).length, 0)
@@ -259,6 +259,7 @@ function DashboardPage() {
           </div>
           <p className="muted" style={{ marginTop: 10 }}>
             AI 점검: 문제 없음 {countOf('적합')} · 확인 필요 {countOf('주의')} · 조치 필요 {countOf('위반')}
+            {countOf('미점검') > 0 && <span style={{ color: 'var(--bad)' }}> · 점검 못 함 {countOf('미점검')}</span>}
           </p>
         </section>
       </div>

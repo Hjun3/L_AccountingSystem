@@ -38,7 +38,8 @@ function DecisionCell({ expense, onSaved, compact = false }) {
   const [memo, setMemo] = useState(expense.memo || '')
   const [error, setError] = useState('')
   const [showMemo, setShowMemo] = useState(false) // 메모 보기 창
-  const needsMemo = expense.ai_status === '주의' || expense.ai_status === '위반'
+  // 확인·조치 필요, 그리고 AI 점검을 못 한 지출은 메모를 남겨야 확정
+  const needsMemo = ['주의', '위반', '미점검'].includes(expense.ai_status)
   const editable = canEdit(useUser()) // 열람 계정은 결정 내용만 보고 버튼은 없다
 
   async function save(finalStatus, withMemo = false) {
@@ -85,7 +86,7 @@ function DecisionCell({ expense, onSaved, compact = false }) {
         </>
       ) : writing ? (
         <>
-          <span style={{ fontSize: 12, color: 'var(--warn)' }}>확인·조치가 필요한 지출이에요. 왜 넘어가는지 메모를 남겨 주세요.</span>
+          <span style={{ fontSize: 12, color: 'var(--warn)' }}>{expense.ai_status === '미점검' ? 'AI 점검을 못 한 지출이에요. 직접 확인한 내용을 메모로 남겨 주세요.' : '확인·조치가 필요한 지출이에요. 왜 넘어가는지 메모를 남겨 주세요.'}</span>
           <textarea placeholder="예: 학생증 사본은 다음 주에 받기로 함" rows={3} maxLength={MEMO_MAX} value={memo} onChange={(e) => setMemo(e.target.value)} style={{ width: '100%', minWidth: 200, resize: 'vertical' }} />
           <span className="muted" style={{ textAlign: 'right' }}>{memo.length}/{MEMO_MAX}</span>
           <div style={{ display: 'flex', gap: 4 }}>

@@ -6,7 +6,7 @@ import Pager, { paginate } from '../components/Pager'
 import StatusBadge from '../components/StatusBadge'
 
 // 필터 버튼 목록: AI 점검 결과와 총무 결정 상태로 걸러 본다
-const FILTERS = ['전체', '적합', '주의', '위반', '결정 대기']
+const FILTERS = ['전체', '적합', '주의', '위반', '미점검', '결정 대기'] // 미점검 버튼은 해당 지출이 있을 때만 보인다
 
 const PAGE_SIZE = 10 // 한 쪽에 보여 줄 지출 수
 
@@ -63,7 +63,7 @@ function ExpenseListPage() {
       {error && <p style={{ color: 'var(--bad)' }}>{error}</p>}
 
       <div style={{ display: 'flex', gap: 4, margin: '12px 0', flexWrap: 'wrap', alignItems: 'center' }}>
-        {FILTERS.map((f) => (
+        {FILTERS.filter((f) => f !== '미점검' || expenses.some((exp) => exp.ai_status === '미점검')).map((f) => (
           <button key={f} onClick={() => setFilter(f)} className={f === filter ? 'active' : ''}>
             {STATUS_LABELS[f] || f} {inEvent.filter((exp) => matchesFilter(exp, f)).length}
           </button>
