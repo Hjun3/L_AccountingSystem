@@ -642,8 +642,12 @@ async def read_receipt_photo(file: UploadFile = File(...)):
     if ext not in RECEIPT_MIME_TYPES:
         raise HTTPException(status_code=400, detail="영수증 읽기는 jpg, png, webp 사진만 됩니다. (아이폰 HEIC는 설정에서 '높은 호환성'으로 찍어 주세요)")
     content = await read_limited(file)
+    with get_conn() as conn:  # 사업명 추천용: 예산에 등록된 사업명 (최근 임기 것부터, 너무 길지 않게 60개까지)
+        event_names = [r["event_name"] for r in conn.execute(
+            "SELECT b.event_name FROM budgets b JOIN periods p ON p.id = b.period_id "
+            "GROUP BY b.event_name ORDER BY MAX(p.term_id) DESC, b.event_name LIMIT 60")]
     try:
-        return read_receipt(content, ext)
+        return read_receipt(content, ext, event_names)
     except AICheckError as e:
         raise HTTPException(status_code=502, detail=str(e))
 

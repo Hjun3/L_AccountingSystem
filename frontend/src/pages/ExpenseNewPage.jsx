@@ -55,6 +55,7 @@ function ExpenseNewPage() {
   // 지출 항목 버튼을 눌렀을 때
   function pickCategory(c) {
     setForm({ ...form, category: c })
+    setAiFilled((list) => list.filter((n) => n !== 'category'))
   }
 
   // 영수증 사진을 AI로 읽어서 폼에 채운다. 값은 총무가 확인하고 고친 뒤 저장한다.
@@ -77,12 +78,17 @@ function ExpenseNewPage() {
         date: r.date || form.date,
         amount: r.amount ?? form.amount,
         description: [r.items, r.store && `[${r.store}]`].filter(Boolean).join(' ') || form.description,
+        // AI가 등록된 목록에서 고른 추천 (자신 없으면 빈 값이라 기존 입력을 그대로 둔다)
+        event_name: r.event_name || form.event_name,
+        category: r.category || form.category,
         has_receipt: true,
       })
       // AI가 실제로 값을 준 칸만 표시
-      setAiFilled([r.date && 'date', r.amount != null && 'amount', (r.items || r.store) && 'description'].filter(Boolean))
+      setAiFilled([r.date && 'date', r.amount != null && 'amount', (r.items || r.store) && 'description', r.event_name && 'event_name', r.category && 'category'].filter(Boolean))
       setReceiptFile(file)
-      setReadNotice('AI가 읽은 값을 채웠습니다. 틀린 곳이 없는지 확인하고, 사업명과 지출 항목을 입력한 뒤 저장하세요.')
+      setReadNotice(r.event_name && r.category
+        ? 'AI가 읽은 값과 추천한 사업명·지출 항목을 채웠습니다. 파란 칸이 맞는지 확인한 뒤 저장하세요.'
+        : 'AI가 읽은 값을 채웠습니다. 파란 칸이 맞는지 확인하고, 비어 있는 사업명·지출 항목을 입력한 뒤 저장하세요.')
     } catch (e) {
       // 실패하면 미리보기를 지워서 다시 '사진 고르기' 칸이 보이게 한다 (첨부 예정 사진도 비움)
       URL.revokeObjectURL(newPreview)
@@ -141,10 +147,12 @@ function ExpenseNewPage() {
           </div>
           <div className="two-col">
             <label>
-              사업명 <SuggestInput name="event_name" list="event-names" placeholder="예: 개강총회" value={form.event_name} onChange={handleChange} required />
+              <span>사업명{aiTag('event_name')}</span>
+              <SuggestInput name="event_name" list="event-names" placeholder="예: 개강총회" value={form.event_name} onChange={handleChange} style={ai('event_name')} required />
             </label>
             <label>
-              지출 항목 <SuggestInput name="category" list="categories" placeholder="예: 급량비" value={form.category} onChange={handleChange} required />
+              <span>지출 항목{aiTag('category')}</span>
+              <SuggestInput name="category" list="categories" placeholder="예: 급량비" value={form.category} onChange={handleChange} style={ai('category')} required />
             </label>
           </div>
           {/* 지출 항목 빠르게 고르기 */}
@@ -172,7 +180,7 @@ function ExpenseNewPage() {
         <div className="new-expense-side" style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
           <section className="card receipt-card" style={{ marginBottom: 0 }}>
             <b>영수증 사진으로 채우기</b>
-            <p className="muted" style={{ marginTop: 2 }}>AI가 날짜·금액·내용을 읽어 입력칸에 채워요. 사진은 증빙으로 같이 붙어요.</p>
+            <p className="muted" style={{ marginTop: 2 }}>AI가 날짜·금액·내용을 읽고 사업명·지출 항목도 추천해 입력칸에 채워요. 사진은 증빙으로 같이 붙어요.</p>
             <label
               onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
               onDragLeave={() => setDragging(false)}
