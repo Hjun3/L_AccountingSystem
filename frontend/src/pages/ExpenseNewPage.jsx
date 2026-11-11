@@ -130,7 +130,8 @@ function ExpenseNewPage() {
             </label>
             <label>
               <span>금액(원){aiTag('amount')}</span>
-              <input type="number" name="amount" min="0" placeholder="0" value={form.amount} onChange={handleChange} style={ai('amount')} required />
+              {/* 위아래 버튼이 없는 숫자 칸: 숫자만 남기고 나머지 글자는 지운다 */}
+              <input name="amount" inputMode="numeric" placeholder="0" value={form.amount} onChange={(e) => { e.target.value = e.target.value.replace(/[^0-9]/g, ''); handleChange(e) }} style={ai('amount')} required />
               {form.amount > 0 && <span className="muted tnum">{Number(form.amount).toLocaleString()}원</span>}
             </label>
           </div>
