@@ -8,5 +8,5 @@
   {"date": "2026-05-09", "amount": 90000, "event_name": "전정대 체육대회", "category": "교통비", "description": "택시비 - 물품 운반 왕복", "has_receipt": false},
   {"date": "2026-05-20", "amount": 60000, "event_name": "학생회비 환급", "category": "환급비", "description": "학생회비 환급 - 휴학생 2명 × 30,000원, 사필영수증 작성, 수령인 학생증 미첨부", "has_receipt": true},
   {"date": "2026-06-03", "amount": 75000, "event_name": "대여사업", "category": "수용비", "description": "대여 물품 - 우산 [사아상사] 15개, 예산계획서에 없는 품목, 예산변경신청서 미제출", "has_receipt": true},
-  {"date": "2026-06-10", "amount": 300000, "event_name": "학생회장 활동비", "category": "활동비", "description": "학생회장 활동비 6월분, 활동비 통장으로 이체, 사필영수증 및 통장내역 첨부", "has_receipt": true}
+  {"date": "2026-06-10", "amount": 280000, "event_name": "기말고사 야식마차", "category": "급량비", "description": "간식 - 컵밥, 음료 [마바마트] 각 140개, 도안 완료, 참가자 명단 첨부", "has_receipt": true}
 ]

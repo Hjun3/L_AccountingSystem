@@ -11,16 +11,16 @@
     {"period": "1학기", "event_name": "전정대 체육대회", "category": "급량비", "amount": 100000},
     {"period": "1학기", "event_name": "전정대 체육대회", "category": "교통비", "amount": 50000},
     {"period": "1학기", "event_name": "학생회비 환급", "category": "환급비", "amount": 100000},
-    {"period": "1학기", "event_name": "학생회장 활동비", "category": "활동비", "amount": 600000},
+    {"period": "1학기", "event_name": "기말고사 야식마차", "category": "급량비", "amount": 300000},
     {"period": "1학기", "event_name": "대여사업", "category": "수용비", "amount": 50000},
     {"period": "2학기", "event_name": "일일호프", "category": "급량비", "amount": 400000},
     {"period": "2학기", "event_name": "일일호프", "category": "수용비", "amount": 80000},
     {"period": "2학기", "event_name": "종강총회", "category": "급량비", "amount": 350000},
-    {"period": "2학기", "event_name": "학생회장 활동비", "category": "활동비", "amount": 600000}
+    {"period": "2학기", "event_name": "소웨 사진전", "category": "수용비", "amount": 200000}
   ],
   "schedules": [
     {"date": "2026-03-04", "kind": "사업", "title": "개강총회"},
-    {"date": "2026-03-21", "kind": "사업", "title": "MT (1박 2일)"},
+    {"date": "2026-03-21", "end_date": "2026-03-22", "kind": "사업", "title": "MT"},
     {"date": "2026-04-30", "kind": "감사", "title": "1학기 수시감사 자료 제출"},
     {"date": "2026-06-20", "kind": "감사", "title": "1학기 정기감사 자료 제출"},
     {"date": "2026-10-30", "kind": "감사", "title": "2학기 수시감사 자료 제출"},
