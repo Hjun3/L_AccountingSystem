@@ -24,11 +24,11 @@ function TodoList({ expense, onChanged, showDone = true }) {
   return (
     <div>
       {shown.map((t) => (
-        <label key={t.index} style={{ display: 'block', textDecoration: t.done ? 'line-through' : 'none', color: t.done ? 'gray' : 'inherit' }}>
+        <label key={t.index} style={{ display: 'block', textDecoration: t.done ? 'line-through' : 'none', color: t.done ? 'var(--muted)' : 'inherit' }}>
           <input type="checkbox" checked={t.done} disabled={!editable} onChange={(e) => toggle(t.index, e.target.checked)} /> {t.text}
         </label>
       ))}
-      {error && <span style={{ color: 'red' }}>{error}</span>}
+      {error && <span style={{ color: 'var(--bad)' }}>{error}</span>}
     </div>
   )
 }

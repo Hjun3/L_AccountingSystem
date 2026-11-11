@@ -28,17 +28,17 @@ function PasswordPage({ forced, onChanged }) {
   }
 
   return (
-    <div style={{ maxWidth: 320 }}>
+    <div style={{ maxWidth: 420 }}>
       <h2>비밀번호 변경</h2>
-      {forced && <p style={{ color: 'darkorange' }}>임시 비밀번호로 로그인했습니다. 새 비밀번호로 바꿔야 사용할 수 있습니다.</p>}
-      <form onSubmit={submit} style={{ display: 'grid', gap: 8 }}>
-        <input type="password" placeholder="현재(임시) 비밀번호" autoComplete="current-password" value={form.current_password} onChange={(e) => setForm({ ...form, current_password: e.target.value })} required />
-        <input type="password" placeholder="새 비밀번호 (8자 이상)" autoComplete="new-password" value={form.new_password} onChange={(e) => setForm({ ...form, new_password: e.target.value })} required />
-        <input type="password" placeholder="새 비밀번호 확인" autoComplete="new-password" value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} required />
-        <button type="submit">변경</button>
+      {forced && <p className="notice" style={{ color: 'var(--warn)' }}>임시 비밀번호로 로그인했습니다. 새 비밀번호로 바꿔야 사용할 수 있습니다.</p>}
+      <form onSubmit={submit} className="card" style={{ display: 'grid', gap: 12, padding: 24 }}>
+        <label>현재(임시) 비밀번호 <input type="password" autoComplete="current-password" value={form.current_password} onChange={(e) => setForm({ ...form, current_password: e.target.value })} required /></label>
+        <label>새 비밀번호 <span className="muted">(8자 이상)</span> <input type="password" autoComplete="new-password" value={form.new_password} onChange={(e) => setForm({ ...form, new_password: e.target.value })} required /></label>
+        <label>새 비밀번호 확인 <input type="password" autoComplete="new-password" value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} required /></label>
+        <button type="submit" style={{ height: 40, marginTop: 4 }}>변경</button>
+        {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
+        {done && !forced && <p style={{ color: 'var(--ok)', margin: 0 }}>비밀번호를 바꿨습니다. 다른 기기의 로그인은 끊어졌습니다.</p>}
       </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {done && !forced && <p style={{ color: 'green' }}>비밀번호를 바꿨습니다. 다른 기기의 로그인은 끊어졌습니다.</p>}
     </div>
   )
 }

@@ -110,7 +110,7 @@ function DecisionCell({ expense, onSaved, compact = false }) {
 function DecisionLogs({ logs }) {
   if (!logs || logs.length === 0) return null
   return (
-    <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: 'gray' }}>
+    <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: 'var(--muted)' }}>
       {logs.map((log, i) => (
         <li key={i}>
           {log.created_at.replace('T', ' ').slice(0, 16)} {finalLabel(log.from_status)} →{' '}

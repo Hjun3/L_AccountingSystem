@@ -42,8 +42,8 @@ function ExpenseEditForm({ expense, onSaved, onCancel }) {
       <div>
         <button type="submit">수정 저장</button> <button type="button" onClick={onCancel}>취소</button>
       </div>
-      <span style={{ fontSize: 12, color: 'gray' }}>수정 내용은 '기록' 화면에 남습니다. AI 점검은 다시 하지 않습니다.</span>
-      {error && <span style={{ color: 'red' }}>{error}</span>}
+      <span style={{ fontSize: 12, color: 'var(--muted)' }}>수정 내용은 '기록' 화면에 남습니다. AI 점검은 다시 하지 않습니다.</span>
+      {error && <span style={{ color: 'var(--bad)' }}>{error}</span>}
     </form>
   )
 }
@@ -99,7 +99,7 @@ function ExpenseDetailPage() {
     }
   }
 
-  if (error) return <p style={{ color: 'red' }}>{error}</p>
+  if (error) return <p style={{ color: 'var(--bad)' }}>{error}</p>
   if (!expense) return <p>불러오는 중...</p>
 
   const deleted = Boolean(expense.deleted_at)

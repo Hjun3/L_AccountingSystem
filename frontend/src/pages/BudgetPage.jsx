@@ -277,7 +277,7 @@ function BudgetPage() {
 
   const period = periods.find((p) => p.id === periodId)
   const sum = (list, key) => list.reduce((s, b) => s + b[key], 0)
-  if (!data || !period || data.period.id !== period.id) return error ? <p style={{ color: 'red' }}>{error}</p> : <p>불러오는 중...</p>
+  if (!data || !period || data.period.id !== period.id) return error ? <p style={{ color: 'var(--bad)' }}>{error}</p> : <p>불러오는 중...</p>
 
   // 예산 줄을 사업명별로 묶는다. 같은 묶음(상위 사업)끼리 붙어 나오게 상위 사업 → 상위가 먼저 → 이름 순
   const groups = {}

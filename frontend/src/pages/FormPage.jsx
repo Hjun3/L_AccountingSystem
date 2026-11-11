@@ -52,7 +52,7 @@ function SapilReceipt({ expense }) {
           </td></tr>
           <tr><td style={head}>금액</td><td style={cell}>
             <Field value={f.unit} onChange={set('unit')} width={90} />원 × <Field value={f.count} onChange={set('count')} width={40} />명 = <b>{total.toLocaleString()}원</b>
-            {total !== expense.amount && <span className="no-print" style={{ color: 'red', fontSize: 12 }}> (등록된 지출 {expense.amount.toLocaleString()}원과 다름)</span>}
+            {total !== expense.amount && <span className="no-print" style={{ color: 'var(--bad)', fontSize: 12 }}> (등록된 지출 {expense.amount.toLocaleString()}원과 다름)</span>}
           </td></tr>
           <tr><td style={head}>비목</td><td style={cell}>
             {SAPIL_KINDS.map((k) => (
@@ -121,7 +121,7 @@ function FormPage() {
     api(`/expenses/${id}`).then(setExpense).catch((e) => setError(e.message))
   }, [id])
 
-  if (error) return <p style={{ color: 'red' }}>{error}</p>
+  if (error) return <p style={{ color: 'var(--bad)' }}>{error}</p>
   if (!expense) return <p>불러오는 중...</p>
 
   return (
@@ -129,7 +129,7 @@ function FormPage() {
       <div className="no-print" style={{ marginBottom: 12 }}>
         <Link to={`/expenses/${id}`}>← 지출 상세로</Link>{' '}
         <button onClick={() => window.print()}>인쇄 / PDF 저장</button>
-        <p style={{ fontSize: 12, color: 'gray' }}>
+        <p style={{ fontSize: 12, color: 'var(--muted)' }}>
           감사자료의 항목을 바탕으로 만든 양식이라 학생회 실제 양식과 다를 수 있습니다. 밑줄 칸은 입력한 뒤 인쇄하세요. (입력값은 저장되지 않습니다)
         </p>
       </div>
