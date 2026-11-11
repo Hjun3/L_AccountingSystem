@@ -265,6 +265,18 @@ def init_db():
             )
             """
         )
+        # 사업 묶음: 하위 사업 → 상위 사업 (예: MT 사전답사 → MT). 지출·예산의 사업명은 그대로 두고 화면·결산에서 묶어 보여 준다
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS event_groups (
+                org_id TEXT NOT NULL,
+                event_name TEXT NOT NULL,
+                parent_name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (org_id, event_name)
+            )
+            """
+        )
         # 여러 날 일정(예: MT 1박 2일)을 위해 종료일을 둔다. 비어 있으면 하루짜리 일정
         if "end_date" not in [c["name"] for c in conn.execute("PRAGMA table_info(schedules)")]:
             conn.execute("ALTER TABLE schedules ADD COLUMN end_date TEXT")
@@ -877,6 +889,54 @@ def delete_budget(budget_id: int):
         return budget_overview(conn, period_id)
 
 
+def event_parents(conn) -> dict:
+    """사업 묶음: {하위 사업명: 상위 사업명}"""
+    return {r["event_name"]: r["parent_name"] for r in conn.execute(
+        "SELECT event_name, parent_name FROM event_groups WHERE org_id = ?", (DEFAULT_ORG_ID,))}
+
+
+@app.get("/event-groups")
+def list_event_groups():
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT event_name, parent_name FROM event_groups WHERE org_id = ? ORDER BY parent_name, event_name", (DEFAULT_ORG_ID,))]
+
+
+class EventGroupIn(BaseModel):
+    event_name: str  # 하위 사업 (예: MT 사전답사)
+    parent_name: str  # 상위 사업 (예: MT)
+
+
+@app.post("/event-groups")
+def set_event_group(body: EventGroupIn):
+    """하위 사업을 상위 사업 아래로 묶는다. 묶음은 한 단계만 (하위의 하위는 안 됨)."""
+    child, parent = body.event_name.strip(), body.parent_name.strip()
+    if not child or not parent:
+        raise HTTPException(status_code=400, detail="하위 사업과 상위 사업을 모두 입력하세요.")
+    if child == parent:
+        raise HTTPException(status_code=400, detail="같은 사업끼리는 묶을 수 없습니다.")
+    with get_conn() as conn:
+        parents = event_parents(conn)
+        if parent in parents:
+            raise HTTPException(status_code=400, detail=f"'{parent}'은(는) 이미 '{parents[parent]}' 아래에 묶여 있어 상위 사업이 될 수 없습니다.")
+        if child in parents.values():
+            raise HTTPException(status_code=400, detail=f"'{child}' 아래에 묶인 사업이 있어서 하위 사업이 될 수 없습니다.")
+        conn.execute(
+            "INSERT INTO event_groups (org_id, event_name, parent_name, created_at) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT (org_id, event_name) DO UPDATE SET parent_name = excluded.parent_name",
+            (DEFAULT_ORG_ID, child, parent, now_text()),
+        )
+    return list_event_groups()
+
+
+@app.delete("/event-groups/{event_name}")
+def delete_event_group(event_name: str):
+    """묶음 풀기"""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM event_groups WHERE org_id = ? AND event_name = ?", (DEFAULT_ORG_ID, event_name))
+    return list_event_groups()
+
+
 @app.get("/reports/settlement.xlsx")
 def settlement_report(period_id: int):
     """선택한 기간(학기 전/1학기/여름방학/2학기)의 결산보고서 엑셀을 내려준다."""
@@ -886,9 +946,10 @@ def settlement_report(period_id: int):
             "SELECT * FROM expenses WHERE deleted_at IS NULL AND date BETWEEN ? AND ?", (p["start_date"], p["end_date"]))]
         budgets = [dict(r) for r in conn.execute(
             "SELECT event_name, category, amount FROM budgets WHERE period_id = ?", (period_id,))]
+        parents = event_parents(conn)
     period = f"{p['name']} ({p['start_date']} ~ {p['end_date']})"
     start, end = p["start_date"], p["end_date"]
-    content = build_settlement(budgets, expenses, period)
+    content = build_settlement(budgets, expenses, period, parents)
     filename = f"settlement_{start}_{end}.xlsx"
     return Response(
         content,

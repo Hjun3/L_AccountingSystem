@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { api, STATUS_LABELS, termQuery, useTerm } from '../common'
+import { api, loadEventParents, STATUS_LABELS, termQuery, topEvent, useTerm } from '../common'
 import DecisionCell from '../components/DecisionCell'
 import Pager, { paginate } from '../components/Pager'
 import StatusBadge from '../components/StatusBadge'
@@ -27,6 +27,10 @@ function ExpenseListPage() {
   // 캘린더 일정의 [이동]으로 오면 주소에 사업명이 붙는다 (예: /expenses?event=일일호프)
   const [searchParams, setSearchParams] = useSearchParams()
   const eventFilter = searchParams.get('event')
+  const [parents, setParents] = useState({}) // 사업 묶음: 상위 사업으로 거르면 하위 사업 지출도 함께 보인다
+  useEffect(() => {
+    loadEventParents().then(setParents).catch(() => {})
+  }, [])
 
   async function loadExpenses() {
     try {
@@ -44,7 +48,7 @@ function ExpenseListPage() {
   // 필터나 임기를 바꾸면 첫 쪽으로
   useEffect(() => setPage(1), [filter, termId, eventFilter])
 
-  const inEvent = expenses.filter((exp) => !eventFilter || exp.event_name === eventFilter)
+  const inEvent = expenses.filter((exp) => !eventFilter || exp.event_name === eventFilter || topEvent(exp.event_name, parents) === eventFilter)
   const shown = inEvent.filter((exp) => matchesFilter(exp, filter))
 
   const sum = shown.reduce((n, exp) => n + exp.amount, 0)

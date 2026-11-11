@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, API_URL, isAdmin, useTerm, useUser } from '../common'
+import { api, API_URL, isAdmin, loadEventParents, topEvent, useTerm, useUser } from '../common'
 import SuggestInput from '../components/SuggestInput'
 
 const won = (n) => `${n.toLocaleString()}원`
@@ -117,6 +117,54 @@ function MonthlyTable({ monthly }) {
   )
 }
 
+// 사업 묶기: 하위 사업을 상위 사업 아래로 (예: MT 사전답사 → MT). 사업명은 그대로, 표·대시보드·결산에서 묶어 보여 준다
+function EventGroupCard({ parents, onChanged }) {
+  const [form, setForm] = useState({ event_name: '', parent_name: '' })
+  const [error, setError] = useState('')
+
+  async function submit(e) {
+    e.preventDefault()
+    setError('')
+    try {
+      await api('/event-groups', { method: 'POST', body: JSON.stringify(form) })
+      setForm({ event_name: '', parent_name: form.parent_name })
+      onChanged()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function remove(child) {
+    try {
+      await api(`/event-groups/${encodeURIComponent(child)}`, { method: 'DELETE' })
+      onChanged()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
+      <b>사업 묶기</b>
+      <p className="muted" style={{ margin: 0 }}>작은 사업을 큰 사업 아래로 묶어요. 사업명은 그대로 두고 표·대시보드·결산보고서에서 함께 보여 줘요.</p>
+      <label>하위 사업 <SuggestInput list="event-names" placeholder="예: MT 사전답사" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required /></label>
+      <label>상위 사업 <SuggestInput list="event-names" placeholder="예: MT" value={form.parent_name} onChange={(e) => setForm({ ...form, parent_name: e.target.value })} required /></label>
+      <button type="submit">묶기</button>
+      {error && <span style={{ color: 'var(--bad)', fontSize: 12 }}>{error}</span>}
+      {Object.keys(parents).length > 0 && (
+        <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+          {Object.entries(parents).map(([child, parent]) => (
+            <div key={child} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+              <span style={{ flex: 1, minWidth: 0 }}><b>{parent}</b> <span className="muted">←</span> {child}</span>
+              <button type="button" onClick={() => remove(child)} style={{ height: 24, fontSize: 12, padding: '0 8px' }}>풀기</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </form>
+  )
+}
+
 // 새 임기 만들기 (관리자만): 다음 학생회가 쓸 때. 지금 임기의 예산 구조를 복사할 수 있다.
 function NewTermForm({ terms, currentTerm, onCreated }) {
   const nextYear = Math.max(new Date().getFullYear(), ...terms.map((t) => t.year)) + 1
@@ -163,6 +211,7 @@ function BudgetPage() {
   const [data, setData] = useState(null)
   const [form, setForm] = useState({ event_name: '', category: '', amount: '' })
   const [error, setError] = useState('')
+  const [parents, setParents] = useState({}) // 사업 묶음 { 하위: 상위 }
   const user = useUser()
   const { terms, termId, reloadTerms } = useTerm()
   // 위 메뉴에서 '전체 임기'를 고르면 예산은 가장 최근 임기를 보여준다
@@ -204,6 +253,11 @@ function BudgetPage() {
     if (periodId !== null) loadBudgets(periodId)
   }, [periodId])
 
+  function loadGroups() {
+    loadEventParents().then(setParents).catch(() => setParents({}))
+  }
+  useEffect(loadGroups, [])
+
   async function addBudget(e) {
     e.preventDefault()
     setError('')
@@ -216,12 +270,25 @@ function BudgetPage() {
   }
 
   const period = periods.find((p) => p.id === periodId)
+  const sum = (list, key) => list.reduce((s, b) => s + b[key], 0)
   if (!data || !period || data.period.id !== period.id) return error ? <p style={{ color: 'red' }}>{error}</p> : <p>불러오는 중...</p>
 
-  // 예산 줄을 사업명별로 묶는다
+  // 예산 줄을 사업명별로 묶는다. 같은 묶음(상위 사업)끼리 붙어 나오게 상위 사업 → 상위가 먼저 → 이름 순
   const groups = {}
-  for (const b of data.budgets) (groups[b.event_name] ||= []).push(b)
-  const sum = (list, key) => list.reduce((s, b) => s + b[key], 0)
+  const ordered = [...data.budgets].sort((a, b) =>
+    topEvent(a.event_name, parents).localeCompare(topEvent(b.event_name, parents)) ||
+    (a.event_name !== topEvent(a.event_name, parents)) - (b.event_name !== topEvent(b.event_name, parents)) ||
+    a.event_name.localeCompare(b.event_name))
+  for (const b of ordered) (groups[b.event_name] ||= []).push(b)
+  // 묶음별 사업 수와 합계 (사업이 2개 이상인 묶음만 '묶음 합계' 줄을 보여 준다)
+  const tops = {}
+  for (const [name, list] of Object.entries(groups)) {
+    const t = (tops[topEvent(name, parents)] ||= { count: 0, amount: 0, spent: 0, last: null })
+    t.count += 1
+    t.amount += sum(list, 'amount')
+    t.spent += sum(list, 'spent')
+    t.last = name
+  }
   const total = { amount: sum(data.budgets, 'amount'), spent: sum(data.budgets, 'spent') }
 
   const remainingTotal = total.amount - total.spent
@@ -277,11 +344,17 @@ function BudgetPage() {
                 </thead>
                 {Object.entries(groups).map(([eventName, list]) => {
                   const b = sum(list, 'amount'), sp = sum(list, 'spent')
+                  const top = topEvent(eventName, parents)
+                  const t = tops[top]
                   return (
                     <tbody key={eventName}>
-                      {/* 사업 줄: 소계 */}
+                      {/* 사업 줄: 소계. 묶인 하위 사업이면 '↳'와 묶음 이름 */}
                       <tr style={{ background: '#fafbfc', fontWeight: 600 }}>
-                        <td>{eventName}</td>
+                        <td>
+                          {top !== eventName && <span className="muted">↳ </span>}
+                          {eventName}
+                          {top !== eventName && <span className="muted" style={{ fontWeight: 400 }}> · {top} 묶음</span>}
+                        </td>
                         <td className="num">{b.toLocaleString()}</td>
                         <td className="num">{sp.toLocaleString()}</td>
                         <td className="num" style={{ color: b - sp < 0 ? 'var(--bad)' : 'inherit' }}>{(b - sp).toLocaleString()}</td>
@@ -291,6 +364,17 @@ function BudgetPage() {
                       {list.map((x) => (
                         <BudgetRow key={x.id + ':' + x.amount} budget={x} onChanged={setData} setError={setError} />
                       ))}
+                      {/* 묶음의 마지막 사업 뒤에 묶음 합계 (사업이 2개 이상일 때만) */}
+                      {t.count >= 2 && t.last === eventName && (
+                        <tr style={{ fontWeight: 700, borderTop: '2px solid var(--line-strong)' }}>
+                          <td>{top} 묶음 합계</td>
+                          <td className="num">{t.amount.toLocaleString()}</td>
+                          <td className="num">{t.spent.toLocaleString()}</td>
+                          <td className="num" style={{ color: t.amount - t.spent < 0 ? 'var(--bad)' : 'inherit' }}>{(t.amount - t.spent).toLocaleString()}</td>
+                          <td><RateBar rate={t.amount > 0 ? Math.round((t.spent / t.amount) * 100) : null} over={t.spent > t.amount} /></td>
+                          <td />
+                        </tr>
+                      )}
                     </tbody>
                   )
                 })}
@@ -307,6 +391,8 @@ function BudgetPage() {
             <label>예산액(원) <input inputMode="numeric" placeholder="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9]/g, '') })} required /></label>
             <button type="submit">추가</button>
           </form>
+
+          <EventGroupCard parents={parents} onChanged={loadGroups} />
 
           <section className="card" style={{ marginBottom: 0 }}>
             <b>예산에 없는 지출</b> <span className="muted">{data.unbudgeted.length}건</span>

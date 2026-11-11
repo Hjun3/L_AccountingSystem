@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, canEdit, KIND_COLORS, scheduleDays, STATUS_COLORS, STATUS_LABELS, termQuery, useTerm, useUser } from '../common'
+import { api, canEdit, KIND_COLORS, loadEventParents, scheduleDays, STATUS_COLORS, STATUS_LABELS, termQuery, topEvent, useTerm, useUser } from '../common'
 import { BarList, BudgetBars, MonthBars } from '../components/Charts'
 import MiniCalendar from '../components/MiniCalendar'
 import StatusBadge from '../components/StatusBadge'
 import DashboardTodos from '../components/DashboardTodos'
 
 // 지출을 기준(사업명, 비목 등)별로 묶어 합계를 구한다. 금액 큰 순서.
-function sumBy(expenses, key) {
+// nameOf를 주면 그 이름으로 묶는다 (사업별일 때 묶인 사업은 상위 사업으로 합침)
+function sumBy(expenses, key, nameOf = (v) => v) {
   const groups = {}
   for (const exp of expenses) {
-    const g = (groups[exp[key]] ||= { name: exp[key], value: 0, count: 0 })
+    const name = nameOf(exp[key])
+    const g = (groups[name] ||= { name, value: 0, count: 0 })
     g.value += exp.amount
     g.count += 1
   }
@@ -47,6 +49,7 @@ function DashboardPage() {
   const [schedules, setSchedules] = useState([])
   const [bank, setBank] = useState(null) // 통장 현황 (불러온 거래내역 기준)
   const [budgetRows, setBudgetRows] = useState([]) // 사업별 예산 집행 (임기 전체)
+  const [parents, setParents] = useState({}) // 사업 묶음 { 하위: 상위 }
   const { terms, termId } = useTerm() // 왼쪽 메뉴에서 고른 임기
   const user = useUser()
   const [groupBy, setGroupBy] = useState('event_name') // 지출 구성: 사업별(event_name, 기본) / 항목별(category)
@@ -57,12 +60,17 @@ function DashboardPage() {
   async function loadBudgets() {
     if (!budgetTerm) return
     const periods = await api(`/periods?term_id=${budgetTerm.id}`)
-    const results = await Promise.all(periods.map((p) => api(`/budgets?period_id=${p.id}`)))
-    // 기간별 예산 줄을 사업명으로 합친다
+    const [results, groupParents] = await Promise.all([
+      Promise.all(periods.map((p) => api(`/budgets?period_id=${p.id}`))),
+      loadEventParents().catch(() => ({})),
+    ])
+    setParents(groupParents)
+    // 기간별 예산 줄을 사업명으로 합친다. 묶인 사업은 상위 사업으로 합친다 (예: MT 사전답사 → MT)
     const byEvent = {}
     for (const r of results) {
       for (const b of r.budgets) {
-        const e = (byEvent[b.event_name] ||= { name: b.event_name, budget: 0, spent: 0 })
+        const name = topEvent(b.event_name, groupParents)
+        const e = (byEvent[name] ||= { name, budget: 0, spent: 0 })
         e.budget += b.amount
         e.spent += b.spent
       }
@@ -275,7 +283,7 @@ function DashboardPage() {
             </div>
           </div>
           <div className="card" style={{ flex: 1, marginBottom: 0 }}>
-            <BarList rows={sumBy(expenses, groupBy).slice(0, 7)} emptyText="지출이 없습니다." />
+            <BarList rows={sumBy(expenses, groupBy, groupBy === 'event_name' ? (n) => topEvent(n, parents) : undefined).slice(0, 7)} emptyText="지출이 없습니다." />
           </div>
         </section>
       </div>

@@ -2,6 +2,7 @@
 
 시트 3개: 사업별 결산(예산 대비 지출), 비목별 집계, 지출 내역
 학생회 결산서처럼 사업(단위사업)별로 비목을 나열하고 소계·합계를 붙인다.
+묶인 사업(예: MT 사전답사 → MT)은 상위 사업 옆에 붙여 쓰고, 묶음이 2개 이상 사업이면 '묶음 합계' 줄을 더한다.
 """
 import io
 from datetime import date
@@ -26,8 +27,11 @@ def _rate(spent, budget):
     return f"{round(spent / budget * 100)}%" if budget else "-"
 
 
-def build_settlement(budgets, expenses, period_text):
-    """budgets: [{event_name, category, amount}], expenses: 기간 안의 지출 목록 → 엑셀 파일 bytes"""
+def build_settlement(budgets, expenses, period_text, parents=None):
+    """budgets: [{event_name, category, amount}], expenses: 기간 안의 지출 목록,
+    parents: 사업 묶음 {하위 사업: 상위 사업} → 엑셀 파일 bytes"""
+    parents = parents or {}
+    top = lambda name: parents.get(name, name)  # 묶음의 대표(상위) 사업명
     # 사업명·비목별 지출 합계
     spent = {}
     for e in expenses:
@@ -41,7 +45,8 @@ def build_settlement(budgets, expenses, period_text):
     for key in spent:
         lines.setdefault(key, 0)
     by_event = {}
-    for (event_name, category), budget in sorted(lines.items()):
+    # 같은 묶음끼리 붙어 나오게: (상위 사업, 상위 사업이 먼저, 사업명, 비목) 순서
+    for (event_name, category), budget in sorted(lines.items(), key=lambda x: (top(x[0][0]), x[0][0] != top(x[0][0]), x[0])):
         by_event.setdefault(event_name, []).append((category, budget, spent.get((event_name, category), 0)))
 
     wb = Workbook()
@@ -54,18 +59,31 @@ def build_settlement(budgets, expenses, period_text):
     ws["A2"] = f"기간: {period_text}"
     ws["A3"] = f"작성일: {date.today().isoformat()}"
     _header(ws, 5, ["단위사업", "비목", "예산액", "지출액", "잔액", "집행률"], [20, 12, 14, 14, 14, 10])
-    row = 6
     total_budget = total_spent = 0
+    group = {"name": None, "events": 0, "budget": 0, "spent": 0}  # 지금 쓰고 있는 묶음
+
+    def close_group():
+        # 묶음에 사업이 2개 이상이면 '묶음 합계' 줄 (전체 합계에는 다시 더하지 않음)
+        if group["events"] >= 2:
+            gb, gs = group["budget"], group["spent"]
+            ws.append([f"{group['name']} 묶음 합계", "", gb, gs, gb - gs, _rate(gs, gb)])
+            for cell in ws[ws.max_row]:
+                cell.font, cell.fill = BOLD, SUBTOTAL_FILL
+
     for event_name, items in by_event.items():
+        if top(event_name) != group["name"]:
+            close_group()
+            group.update(name=top(event_name), events=0, budget=0, spent=0)
+        label = event_name if top(event_name) == event_name else f"{event_name} ({top(event_name)} 묶음)"
         for category, budget, used in items:
-            ws.append([event_name, category, budget, used, budget - used, _rate(used, budget)])
-            row += 1
+            ws.append([label, category, budget, used, budget - used, _rate(used, budget)])
         eb, es = sum(i[1] for i in items), sum(i[2] for i in items)
+        group.update(events=group["events"] + 1, budget=group["budget"] + eb, spent=group["spent"] + es)
         ws.append([f"{event_name} 소계", "", eb, es, eb - es, _rate(es, eb)])
-        row += 1
-        for cell in ws[row - 1]:
+        for cell in ws[ws.max_row]:
             cell.font, cell.fill = BOLD, SUBTOTAL_FILL
         total_budget, total_spent = total_budget + eb, total_spent + es
+    close_group()
     ws.append(["합계", "", total_budget, total_spent, total_budget - total_spent, _rate(total_spent, total_budget)])
     for cell in ws[ws.max_row]:
         cell.font = BOLD

@@ -63,3 +63,12 @@ export const scheduleOn = (schedule, date) => schedule.date <= date && date <= (
 // 일정 날짜를 짧게: '3/21' 또는 '3/21~3/22'
 const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`
 export const scheduleDays = (schedule) => (schedule.end_date ? `${md(schedule.date)}~${md(schedule.end_date)}` : md(schedule.date))
+
+// 사업 묶음 (예: MT 사전답사 → MT). parents = { 하위 사업명: 상위 사업명 }
+// 묶음의 대표(상위) 사업명을 돌려준다. 묶이지 않은 사업은 자기 이름
+export const topEvent = (name, parents) => parents[name] || name
+// 서버의 묶음 목록을 { 하위: 상위 } 모양으로 불러온다
+export async function loadEventParents() {
+  const list = await api('/event-groups')
+  return Object.fromEntries(list.map((g) => [g.event_name, g.parent_name]))
+}
