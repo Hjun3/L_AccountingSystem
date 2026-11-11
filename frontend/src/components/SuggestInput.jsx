@@ -66,6 +66,7 @@ function SuggestInput({ list, value, onChange, name, style, ...rest }) {
   const text = String(value || '').trim()
   // 입력한 글자가 들어간 것만. 이미 목록과 똑같이 입력했으면 전체를 보여 준다
   const shown = !text || options.includes(text) ? options : options.filter((o) => o.includes(text))
+  const isNew = list === 'event-names' && text !== '' && !options.includes(text) // 아직 없는 사업명
 
   // 고르면 보통 입력처럼 onChange를 불러 준다
   function pick(option) {
@@ -103,8 +104,14 @@ function SuggestInput({ list, value, onChange, name, style, ...rest }) {
         style={{ position: 'absolute', right: 10, top: '50%', marginTop: -6, pointerEvents: 'none', color: 'var(--muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>
         <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      {open && pos && shown.length > 0 && (
+      {open && pos && (shown.length > 0 || isNew) && (
         <ul ref={listRef} className="suggest-list" role="listbox" style={pos}>
+          {/* 목록에 없는 새 사업명: 이대로 입력하면 새 사업으로 추가된다는 안내 */}
+          {isNew && (
+            <li className="new" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(text)}>
+              + '{text}' 새 사업으로 추가
+            </li>
+          )}
           {shown.map((o, i) => (
             <li
               key={o}
