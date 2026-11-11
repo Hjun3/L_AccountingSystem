@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, KIND_COLORS, scheduleDays, scheduleOn, STATUS_COLORS, STATUS_LABELS } from '../common'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
@@ -134,14 +134,11 @@ function CalendarPage() {
                       </div>
                     ))}
                     {expenses.filter((exp) => exp.date === date).map((exp) => (
+                      // 칸 안에서는 표시만 한다. 이동은 오른쪽 카드의 [이동] 버튼으로
                       <div key={'e' + exp.id} className="cal-item">
-                        <Link
-                          to={`/expenses/${exp.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          style={{ color: STATUS_COLORS[exp.ai_status], overflow: 'hidden', textOverflow: 'ellipsis' }}
-                        >
+                        <span style={{ color: STATUS_COLORS[exp.ai_status], overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           ● {exp.event_name} {exp.amount.toLocaleString()}원
-                        </Link>
+                        </span>
                       </div>
                     ))}
                   </>
