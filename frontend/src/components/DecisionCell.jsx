@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, finalLabel } from '../common'
+import { api, canEdit, finalLabel, useUser } from '../common'
 
 // 지출 한 건에 대한 총무 결정 칸 (목록 페이지와 상세 페이지에서 같이 사용)
 // - 대기 상태: [확정] 버튼
@@ -39,6 +39,7 @@ function DecisionCell({ expense, onSaved, compact = false }) {
   const [error, setError] = useState('')
   const [showMemo, setShowMemo] = useState(false) // 메모 보기 창
   const needsMemo = expense.ai_status === '주의' || expense.ai_status === '위반'
+  const editable = canEdit(useUser()) // 열람 계정은 결정 내용만 보고 버튼은 없다
 
   async function save(finalStatus, withMemo = false) {
     setError('')
@@ -80,7 +81,7 @@ function DecisionCell({ expense, onSaved, compact = false }) {
             <div style={{ fontSize: 12, color: 'var(--sub)', wordBreak: 'keep-all', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>메모: {expense.memo}</div>
           )}
           {showMemo && <MemoPopup memo={expense.memo} onClose={() => setShowMemo(false)} />}
-          <button onClick={() => save('대기')} style={{ justifySelf: 'start' }}>취소</button>
+          {editable && <button onClick={() => save('대기')} style={{ justifySelf: 'start' }}>취소</button>}
         </>
       ) : writing ? (
         <>
@@ -95,7 +96,7 @@ function DecisionCell({ expense, onSaved, compact = false }) {
       ) : (
         <>
           {!compact && <div>현재: 대기</div>}
-          <button onClick={confirm} style={{ justifySelf: 'start' }}>확정</button>
+          {editable ? <button onClick={confirm} style={{ justifySelf: 'start' }}>확정</button> : compact && <span className="muted">대기</span>}
         </>
       )}
       {error && <span style={{ color: 'var(--bad)', fontSize: 12 }}>{error}</span>}

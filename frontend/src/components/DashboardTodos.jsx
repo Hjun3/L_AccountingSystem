@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, STATUS_COLORS } from '../common'
+import { api, canEdit, STATUS_COLORS, useUser } from '../common'
 
 const ORDER = { 위반: 0, 주의: 1, 적합: 2 } // 조치 필요 → 확인 필요 → 문제 없음 순
 
@@ -8,6 +8,7 @@ const ORDER = { 위반: 0, 주의: 1, 적합: 2 } // 조치 필요 → 확인 �
 // 체크는 '선택'만 하고, 아래 [확정]을 눌러야 저장되어 사라진다. [취소]는 체크를 모두 푼다 (잘못 눌렀을 때 대비).
 // 높이를 정할 수 있게 목록(스크롤 영역)과 버튼 줄을 나눠서 그린다.
 function DashboardTodos({ expenses, onChanged }) {
+  const editable = canEdit(useUser()) // 열람 계정은 목록만 보고 체크·확정은 없다
   const [selected, setSelected] = useState([]) // 체크한 할 일 (예: '12-0' = 12번 지출의 0번째)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -45,7 +46,7 @@ function DashboardTodos({ expenses, onChanged }) {
           const on = selected.includes(t.key)
           return (
             <label key={t.key} style={{ display: 'flex', gap: 12, padding: '12px 0', borderTop: i ? '1px solid var(--line)' : 'none', cursor: 'pointer' }}>
-              <input type="checkbox" checked={on} onChange={() => toggle(t.key)} style={{ marginTop: 3 }} />
+              {editable && <input type="checkbox" checked={on} onChange={() => toggle(t.key)} style={{ marginTop: 3 }} />}
               <div style={{ flex: 1, minWidth: 0 }}>
                 {/* 1줄: 할 일 */}
                 <div style={{ fontWeight: 500, color: on ? 'var(--sub)' : 'var(--text)', textDecoration: on ? 'line-through' : 'none' }}>{t.text}</div>
@@ -62,6 +63,8 @@ function DashboardTodos({ expenses, onChanged }) {
           )
         })}
       </div>
+      {editable && (
+        <>
       {/* 버튼 줄: 선택한 것이 있을 때만 누를 수 있다 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, padding: '10px 20px', borderTop: '1px solid var(--line)' }}>
         {error && <span style={{ color: 'var(--bad)', fontSize: 12, marginRight: 'auto' }}>{error}</span>}
@@ -69,6 +72,8 @@ function DashboardTodos({ expenses, onChanged }) {
         <button onClick={() => setSelected([])} disabled={!selected.length || saving}>취소</button>
         <button type="submit" onClick={finish} disabled={!selected.length || saving}>{saving ? '저장 중...' : '확정'}</button>
       </div>
+        </>
+      )}
     </div>
   )
 }

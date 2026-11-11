@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, API_URL } from '../common'
+import { api, API_URL, canEdit, useUser } from '../common'
 
 // 지출 상세 페이지 아래쪽: 총무 메모와 증빙 파일(영수증 사진 등) 첨부
 function MemoAndFiles({ expense, onChanged }) {
@@ -7,6 +7,7 @@ function MemoAndFiles({ expense, onChanged }) {
   const [memoSaved, setMemoSaved] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const editable = canEdit(useUser()) // 열람 계정은 메모·파일을 보기만 한다
   const [dragging, setDragging] = useState(false) // 파일을 끌어다 올려 놓는 중인지
 
   async function saveMemo() {
@@ -58,7 +59,10 @@ function MemoAndFiles({ expense, onChanged }) {
   return (
     <div>
       <h3 style={{ marginTop: 0 }}>메모</h3>
-      <p style={{ fontSize: 12, color: 'gray', margin: 0 }}>총무 메모입니다. 확인·조치가 필요한 지출을 확정할 때 남긴 메모도 여기에 보입니다. AI 점검에는 쓰이지 않습니다.</p>
+      <p className="muted" style={{ margin: '0 0 8px' }}>총무 메모입니다. 확인·조치가 필요한 지출을 확정할 때 남긴 메모도 여기에 보입니다. AI 점검에는 쓰이지 않습니다.</p>
+      {!editable ? (
+        <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{expense.memo || <span className="muted">메모가 없습니다.</span>}</p>
+      ) : (
       <div style={{ display: 'flex', gap: 4, maxWidth: 600 }}>
         <input
           style={{ flex: 1 }}
@@ -73,10 +77,12 @@ function MemoAndFiles({ expense, onChanged }) {
           {memoSaved ? '저장됨' : '메모 저장'}
         </button>
       </div>
+      )}
 
       <h3>증빙 파일 <span className="muted" style={{ fontWeight: 400 }}>{expense.attachments.length}개 · 사진(JPG·PNG·HEIC)·PDF, 파일당 10MB까지</span></h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-        {/* 첫 칸: 파일 추가 (눌러서 고르거나 끌어다 놓기) */}
+        {/* 첫 칸: 파일 추가 (눌러서 고르거나 끌어다 놓기). 열람 계정에는 없다 */}
+        {editable && (
         <label
           onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
           onDragLeave={() => setDragging(false)}
@@ -97,6 +103,7 @@ function MemoAndFiles({ expense, onChanged }) {
             </span>
           )}
         </label>
+        )}
 
         {expense.attachments.map((a) => {
           const url = `${API_URL}/attachments/${a.id}`
@@ -114,7 +121,7 @@ function MemoAndFiles({ expense, onChanged }) {
                 <div title={a.file_name} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{a.file_name}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
                   <span className="muted">{(a.created_at || '').slice(0, 10)}</span>
-                  <button onClick={() => deleteFile(a)} style={{ height: 24, fontSize: 11, padding: '0 8px', color: 'var(--bad)' }}>삭제</button>
+                  {editable && <button onClick={() => deleteFile(a)} style={{ height: 24, fontSize: 11, padding: '0 8px', color: 'var(--bad)' }}>삭제</button>}
                 </div>
               </div>
             </div>
@@ -122,6 +129,7 @@ function MemoAndFiles({ expense, onChanged }) {
         })}
       </div>
       {error && <p style={{ color: 'var(--bad)' }}>{error}</p>}
+      {!editable && expense.attachments.length === 0 && <p className="muted">첨부된 파일이 없습니다.</p>}
     </div>
   )
 }

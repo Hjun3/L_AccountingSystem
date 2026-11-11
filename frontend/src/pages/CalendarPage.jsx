@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { api, KIND_COLORS, scheduleDays, scheduleOn, STATUS_COLORS, STATUS_LABELS } from '../common'
+import { api, canEdit, KIND_COLORS, scheduleDays, scheduleOn, STATUS_COLORS, STATUS_LABELS, useUser } from '../common'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -32,6 +32,7 @@ function CalendarPage() {
   const [schedules, setSchedules] = useState([])
   const [form, setForm] = useState({ date: toDateString(year, month, today.getDate()), end_date: '', kind: '사업', title: '', memo: '' })
   const navigate = useNavigate()
+  const editable = canEdit(useUser()) // 열람 계정은 일정 등록·삭제가 없다
   const [error, setError] = useState('')
 
   async function loadAll() {
@@ -130,7 +131,7 @@ function CalendarPage() {
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {sc.date === date || date.endsWith('-01') ? `[${sc.kind}] ${sc.title}` : `↳ ${sc.title}`}
                         </span>
-                        {sc.date === date && deleteButton(sc)}
+                        {editable && sc.date === date && deleteButton(sc)}
                       </div>
                     ))}
                     {expenses.filter((exp) => exp.date === date).map((exp) => (
@@ -170,7 +171,7 @@ function CalendarPage() {
                       {sc.memo && <div className="muted">{sc.memo}</div>}
                     </span>
                     <button onClick={() => navigate(`/expenses?event=${encodeURIComponent(sc.title)}`)} style={moveButton} title={`'${sc.title}' 사업의 지출 목록 보기`}>이동</button>
-                    {deleteButton(sc)}
+                    {editable && deleteButton(sc)}
                   </div>
                 ))}
                 {/* 지출: [이동]을 누르면 지출 상세로 */}
@@ -188,6 +189,7 @@ function CalendarPage() {
             )}
           </section>
 
+          {editable && (
           <form onSubmit={addSchedule} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
             <b>일정 등록</b>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 8 }}>
@@ -217,6 +219,7 @@ function CalendarPage() {
             </label>
             <button type="submit">일정 추가</button>
           </form>
+          )}
         </aside>
       </div>
     </div>

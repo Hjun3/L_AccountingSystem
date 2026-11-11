@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { api, API_URL, isAdmin, loadEventParents, topEvent, useTerm, useUser } from '../common'
+import { api, API_URL, canEdit, isAdmin, loadEventParents, topEvent, useTerm, useUser } from '../common'
 import SuggestInput from '../components/SuggestInput'
 
 const won = (n) => `${n.toLocaleString()}원`
 
 // 예산 1줄: 금액을 고치거나 삭제할 수 있다
-function BudgetRow({ budget, onChanged, setError }) {
+function BudgetRow({ budget, onChanged, setError, editable }) {
   const [amount, setAmount] = useState(budget.amount)
   const changed = Number(amount) !== budget.amount
   const rate = budget.amount > 0 ? Math.round((budget.spent / budget.amount) * 100) : null
@@ -32,13 +32,18 @@ function BudgetRow({ budget, onChanged, setError }) {
     <tr>
       <td style={{ paddingLeft: 28, color: 'var(--sub)' }}>{budget.category}</td>
       <td className="num">
-        {changed && <button onClick={save} style={{ height: 26, fontSize: 12, marginRight: 4 }}>저장</button>}
-        <input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))} style={{ width: 110, height: 28, textAlign: 'right' }} />
+        {/* 열람 계정은 금액을 글로만 본다 */}
+        {editable ? (
+          <>
+            {changed && <button onClick={save} style={{ height: 26, fontSize: 12, marginRight: 4 }}>저장</button>}
+            <input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))} style={{ width: 110, height: 28, textAlign: 'right' }} />
+          </>
+        ) : budget.amount.toLocaleString()}
       </td>
       <td className="num">{budget.spent.toLocaleString()}</td>
       <td className="num" style={{ color: over ? 'var(--bad)' : 'inherit', fontWeight: over ? 700 : 400 }}>{budget.remaining.toLocaleString()}</td>
       <td><RateBar rate={rate} over={over} /></td>
-      <td style={{ textAlign: 'right' }}><button onClick={remove} style={{ height: 26, fontSize: 12, color: 'var(--bad)' }}>삭제</button></td>
+      <td style={{ textAlign: 'right' }}>{editable && <button onClick={remove} style={{ height: 26, fontSize: 12, color: 'var(--bad)' }}>삭제</button>}</td>
     </tr>
   )
 }
@@ -213,6 +218,7 @@ function BudgetPage() {
   const [error, setError] = useState('')
   const [parents, setParents] = useState({}) // 사업 묶음 { 하위: 상위 }
   const user = useUser()
+  const editable = canEdit(user) // 열람 계정은 예산을 보기만 한다
   const { terms, termId, reloadTerms } = useTerm()
   // 위 메뉴에서 '전체 임기'를 고르면 예산은 가장 최근 임기를 보여준다
   const term = terms.find((t) => t.id === termId) || terms[0]
@@ -308,7 +314,11 @@ function BudgetPage() {
             </button>
           ))}
         </div>
-        <PeriodDates key={period.id + period.start_date + period.end_date} period={period} onSaved={() => { loadPeriods(); reloadTerms(termId) }} setError={setError} />
+        {editable ? (
+          <PeriodDates key={period.id + period.start_date + period.end_date} period={period} onSaved={() => { loadPeriods(); reloadTerms(termId) }} setError={setError} />
+        ) : (
+          <span className="muted">기간 {period.start_date} ~ {period.end_date}</span>
+        )}
       </div>
       {error && <p style={{ color: 'var(--bad)' }}>{error}</p>}
 
@@ -362,7 +372,7 @@ function BudgetPage() {
                         <td />
                       </tr>
                       {list.map((x) => (
-                        <BudgetRow key={x.id + ':' + x.amount} budget={x} onChanged={setData} setError={setError} />
+                        <BudgetRow key={x.id + ':' + x.amount} budget={x} onChanged={setData} setError={setError} editable={editable} />
                       ))}
                       {/* 묶음의 마지막 사업 뒤에 묶음 합계 (사업이 2개 이상일 때만) */}
                       {t.count >= 2 && t.last === eventName && (
@@ -384,6 +394,7 @@ function BudgetPage() {
         </section>
 
         <aside style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+          {editable && (
           <form onSubmit={addBudget} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
             <b>{period.name} 예산 추가</b>
             <label>사업명 <SuggestInput list="event-names" placeholder="예: 개강총회" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required /></label>
@@ -392,7 +403,9 @@ function BudgetPage() {
             <button type="submit">추가</button>
           </form>
 
-          <EventGroupCard parents={parents} onChanged={loadGroups} />
+          )}
+
+          {editable && <EventGroupCard parents={parents} onChanged={loadGroups} />}
 
           <section className="card" style={{ marginBottom: 0 }}>
             <b>예산에 없는 지출</b> <span className="muted">{data.unbudgeted.length}건</span>

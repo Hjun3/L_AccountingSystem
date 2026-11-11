@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, STATUS_COLORS } from '../common'
+import { api, canEdit, useUser, STATUS_COLORS } from '../common'
 import Pager, { paginate } from '../components/Pager'
 import SuggestInput from '../components/SuggestInput'
 
@@ -45,6 +45,7 @@ function UnregisteredRow({ tx, onRegistered }) {
 
 // 거래내역 불러오기: 은행 엑셀의 출금 내역을 등록된 지출과 맞춰 보고, 빠진 건을 등록한다
 function BankImportPage() {
+  const user = useUser()
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -89,6 +90,9 @@ function BankImportPage() {
 
   const allRows = result ? result.transactions.map((tx, i) => ({ tx, i })).filter(({ tx }) => !onlyUnregistered || !tx.matched_expense_id) : []
   const { rows, count: pageCount, current } = paginate(allRows, page, 10)
+
+  // 열람 계정은 등록할 수 없으므로 안내만 보여 준다 (메뉴에도 없지만 주소로 들어온 경우)
+  if (!canEdit(user)) return <div className="card">열람 계정은 이 화면을 쓸 수 없습니다. 지출은 '지출 목록'에서 볼 수 있어요.</div>
 
   return (
     <div>

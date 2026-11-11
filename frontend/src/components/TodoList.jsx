@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { api } from '../common'
+import { api, canEdit, useUser } from '../common'
 
 // AI가 알려 준 "챙길 것" 체크리스트. 체크하면 바로 저장된다.
 // showDone=false 이면 끝낸 항목은 숨긴다 (대시보드용)
 function TodoList({ expense, onChanged, showDone = true }) {
   const [error, setError] = useState('')
+  const editable = canEdit(useUser()) // 열람 계정은 체크할 수 없다
 
   async function toggle(index, done) {
     setError('')
@@ -24,7 +25,7 @@ function TodoList({ expense, onChanged, showDone = true }) {
     <div>
       {shown.map((t) => (
         <label key={t.index} style={{ display: 'block', textDecoration: t.done ? 'line-through' : 'none', color: t.done ? 'gray' : 'inherit' }}>
-          <input type="checkbox" checked={t.done} onChange={(e) => toggle(t.index, e.target.checked)} /> {t.text}
+          <input type="checkbox" checked={t.done} disabled={!editable} onChange={(e) => toggle(t.index, e.target.checked)} /> {t.text}
         </label>
       ))}
       {error && <span style={{ color: 'red' }}>{error}</span>}

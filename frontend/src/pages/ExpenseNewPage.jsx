@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, CATEGORIES } from '../common'
+import { api, canEdit, useUser, CATEGORIES } from '../common'
 import SuggestInput from '../components/SuggestInput'
 
 // 폼의 처음 상태
@@ -34,6 +34,7 @@ function shrinkImage(file, maxSide = 1280) {
 
 // 지출 등록 페이지: 저장하면 AI 점검을 거친 뒤 그 지출의 상세 페이지로 이동한다
 function ExpenseNewPage() {
+  const user = useUser()
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false) // AI 점검 중에는 저장 버튼을 막아 중복 저장을 방지
@@ -126,6 +127,9 @@ function ExpenseNewPage() {
   // AI가 채운 칸은 연한 파랑 바탕 + 'AI' 표시
   const ai = (name) => (aiFilled.includes(name) ? { background: 'var(--primary-soft)' } : undefined)
   const aiTag = (name) => aiFilled.includes(name) && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--primary)' }}> AI</span>
+
+  // 열람 계정은 등록할 수 없으므로 안내만 보여 준다 (메뉴에도 없지만 주소로 들어온 경우)
+  if (!canEdit(user)) return <div className="card">열람 계정은 이 화면을 쓸 수 없습니다. 지출은 '지출 목록'에서 볼 수 있어요.</div>
 
   return (
     <div>
