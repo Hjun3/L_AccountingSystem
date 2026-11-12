@@ -400,7 +400,7 @@ function LandingPage({ onLogin, user, onGo }) {
         <div className="lp-wrap">
           <h2>이번 학기 장부,<br />같이 정리해요</h2>
           <button className="lp-btn primary" onClick={start}>{loggedIn ? '대시보드로 이동' : '로그인하고 시작하기'}</button>
-          {!loggedIn && <p className="muted" style={{ marginTop: 14 }}>계정은 관리자가 만들어 줍니다.</p>}
+          {!loggedIn && <p className="muted" style={{ marginTop: 14 }}>회원가입은 준비 중이에요. 지금은 관리자에게 계정을 받아 시작할 수 있어요.</p>}
         </div>
       </section>
 

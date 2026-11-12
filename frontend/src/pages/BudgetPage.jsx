@@ -340,8 +340,8 @@ function BudgetPage() {
         </div>
       </div>
 
-      {/* 가운데: 왼쪽 예산 표, 오른쪽 예산 추가·예산에 없는 지출 */}
-      <div className="budget-main">
+      {/* 가운데: 왼쪽 예산 표, 오른쪽 예산 추가 (열람 계정은 표만 넓게) */}
+      <div className="budget-main" style={editable ? undefined : { gridTemplateColumns: 'minmax(0, 1fr)' }}>
         <section>
           <h3 style={{ marginTop: 0 }}>사업별 예산</h3>
           {Object.keys(groups).length === 0 ? (
@@ -393,38 +393,45 @@ function BudgetPage() {
           )}
         </section>
 
-        <aside style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
-          {editable && (
-          <form onSubmit={addBudget} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
-            <b>{period.name} 예산 추가</b>
-            <label>사업명 <SuggestInput list="event-names" placeholder="예: 개강총회" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required /></label>
-            <label>지출 항목 <SuggestInput list="categories" placeholder="예: 급량비" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required /></label>
-            <label>예산액(원) <input inputMode="numeric" placeholder="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9]/g, '') })} required /></label>
-            <button type="submit">추가</button>
-          </form>
-
-          )}
-
-          {editable && <EventGroupCard parents={parents} onChanged={loadGroups} />}
-
-          <section className="card" style={{ marginBottom: 0 }}>
-            <b>예산에 없는 지출</b> <span className="muted">{data.unbudgeted.length}건</span>
-            <p className="muted" style={{ marginTop: 2 }}>예산에 없는 사업명·지출 항목으로 등록된 지출이에요. 예산을 추가하거나 이름 오타를 확인하세요.</p>
-            {data.unbudgeted.length === 0 ? (
-              <p className="muted">없습니다.</p>
-            ) : (
-              <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
-                {data.unbudgeted.map((u) => (
-                  <div key={u.event_name + u.category} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
-                    <span>{u.event_name} · <span className="muted">{u.category}</span></span>
-                    <span className="tnum" style={{ fontWeight: 600 }}>{won(u.spent)}</span>
-                  </div>
-                ))}
+        {/* 오른쪽: 예산 추가 (새 사업도 여기서 만든다) */}
+        {editable && (
+          <aside style={{ alignContent: 'start', position: 'sticky', top: 16 }}>{/* 표가 길어도 화면을 따라옴 */}
+            <form onSubmit={addBudget} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
+              <div>
+                <b>{period.name} 예산 추가</b>
+                <div className="muted" style={{ marginTop: 2 }}>새 사업도 여기서 만들어요. 사업명에 목록에 없는 새 이름을 쓰면 새 사업으로 추가돼요.</div>
               </div>
-            )}
-          </section>
-        </aside>
+              <label>사업명 <SuggestInput list="event-names" placeholder="예: 개강총회 (새 이름도 가능)" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required /></label>
+              <label>지출 항목 <SuggestInput list="categories" placeholder="예: 급량비" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required /></label>
+              <label>예산액(원) <input inputMode="numeric" placeholder="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9]/g, '') })} required /></label>
+              <button type="submit">추가</button>
+              <div className="muted">한 사업에 지출 항목이 여러 개면 사업명은 그대로 두고 항목·금액만 바꿔 계속 추가하세요.</div>
+            </form>
+          </aside>
+        )}
       </div>
+
+      {/* 표 아래: 예산에 없는 지출 | 사업 묶기 (나란히) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginTop: 20, alignItems: 'start' }}>
+        <section className="card" style={{ marginBottom: 0 }}>
+          <b>예산에 없는 지출</b> <span className="muted">{data.unbudgeted.length}건</span>
+          <p className="muted" style={{ marginTop: 2 }}>예산에 없는 사업명·지출 항목으로 등록된 지출이에요. 예산을 추가하거나 이름 오타를 확인하세요.</p>
+          {data.unbudgeted.length === 0 ? (
+            <p className="muted">없습니다.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+              {data.unbudgeted.map((u) => (
+                <div key={u.event_name + u.category} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
+                  <span>{u.event_name} · <span className="muted">{u.category}</span></span>
+                  <span className="tnum" style={{ fontWeight: 600 }}>{won(u.spent)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+        {editable && <EventGroupCard parents={parents} onChanged={loadGroups} />}
+      </div>
+
 
       <h3>월별 지출</h3>
       <MonthlyTable monthly={data.monthly} />
