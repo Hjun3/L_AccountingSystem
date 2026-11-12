@@ -194,16 +194,16 @@ function NewTermForm({ terms, currentTerm, onCreated }) {
   }
 
   return (
-    <form onSubmit={submit} className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+    <form onSubmit={submit} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0, alignContent: 'start' }}>
       <b>새 임기 만들기</b>
+      <span className="muted" style={{ marginTop: -6 }}>다음 학생회가 쓸 때 만듭니다. 기간 4개(학기 전/1학기/여름방학/2학기)가 함께 만들어집니다.</span>
       <span><input inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ''))} style={{ width: 80 }} /> 년</span>
       {currentTerm && (
         <label>
           <input type="checkbox" checked={copy} onChange={(e) => setCopy(e.target.checked)} /> {currentTerm.name} 예산(사업·지출 항목·금액) 복사
         </label>
       )}
-      <button type="submit">만들기</button>
-      <span className="muted">다음 학생회가 쓸 때 만듭니다. 기간 4개(학기 전/1학기/여름방학/2학기)가 함께 만들어집니다.</span>
+      <button type="submit" style={{ justifySelf: 'start' }}>만들기</button>
       {error && <span style={{ color: 'var(--bad)' }}>{error}</span>}
     </form>
   )
@@ -393,10 +393,12 @@ function BudgetPage() {
               </table>
             </div>
           )}
+          <h3>월별 지출</h3>
+          <MonthlyTable monthly={data.monthly} />
         </section>
 
         {/* 오른쪽 (표가 길어도 화면을 따라옴): 예산 추가(새 사업도 여기서) + 살펴볼 것 */}
-        <aside style={{ display: 'grid', gap: 16, alignContent: 'start', position: 'sticky', top: 16 }}>
+        <aside style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
           {editable && (
             <form onSubmit={addBudget} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
               <div>
@@ -439,11 +441,19 @@ function BudgetPage() {
               </div>
             </div>
           </section>
+
+          {/* 결산보고서: 버튼이 있는 작은 카드 */}
+          <section className="card" style={{ marginBottom: 0 }}>
+            <b>{period.name} 결산보고서</b>
+            <div className="muted" style={{ margin: '2px 0 10px' }}>엑셀: 사업별 결산, 비목별 집계, 지출 내역 시트</div>
+            {/* 서버가 만든 엑셀 파일을 바로 내려받는 링크 */}
+            <a className="btn primary" href={`${API_URL}/reports/settlement.xlsx?period_id=${period.id}`} download style={{ width: '100%', justifyContent: 'center' }}>엑셀 내려받기</a>
+          </section>
         </aside>
       </div>
 
-      {/* 표 아래: 예산에 없는 지출 | 사업 묶기 (나란히) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginTop: 20, alignItems: 'start' }}>
+      {/* 아래 줄: 예산에 없는 지출 | 사업 묶기 | 새 임기 만들기(관리자) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginTop: 24, alignItems: 'start' }}>
         <section className="card" style={{ marginBottom: 0 }}>
           <b>예산에 없는 지출</b> <span className="muted">{data.unbudgeted.length}건</span>
           <p className="muted" style={{ marginTop: 2 }}>예산에 없는 사업명·지출 항목으로 등록된 지출이에요. 예산을 추가하거나 이름 오타를 확인하세요.</p>
@@ -461,23 +471,10 @@ function BudgetPage() {
           )}
         </section>
         {editable && <EventGroupCard parents={parents} onChanged={loadGroups} />}
+        {isAdmin(user) && <NewTermForm terms={terms} currentTerm={term} onCreated={(id) => reloadTerms(id)} />}
       </div>
 
 
-      <h3>월별 지출</h3>
-      <MonthlyTable monthly={data.monthly} />
-
-      {/* 결산보고서 */}
-      <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 24 }}>
-        <div>
-          <b>{period.name} 결산보고서</b>
-          <div className="muted">엑셀 파일: 사업별 결산, 비목별 집계, 지출 내역 시트</div>
-        </div>
-        {/* 서버가 만든 엑셀 파일을 바로 내려받는 링크 */}
-        <a className="btn primary" href={`${API_URL}/reports/settlement.xlsx?period_id=${period.id}`} download>엑셀 내려받기</a>
-      </div>
-
-      {isAdmin(user) && <NewTermForm terms={terms} currentTerm={term} onCreated={(id) => reloadTerms(id)} />}
     </div>
   )
 }
