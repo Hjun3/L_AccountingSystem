@@ -97,6 +97,7 @@ function DashboardPage() {
   const total = expenses.reduce((sum, exp) => sum + exp.amount, 0)
   const countOf = (status) => expenses.filter((exp) => exp.ai_status === status).length
   const waiting = expenses.filter((exp) => exp.final_status === '대기')
+  const noReceipt = expenses.filter((exp) => !exp.has_receipt) // 증빙 없는 지출
   // 주의/위반인데 아직 총무가 결정하지 않은 건
   const needCheck = waiting.filter((exp) => ['주의', '위반', '미점검'].includes(exp.ai_status))
   // 아직 끝내지 않은 '챙길 것'이 있는 지출
@@ -173,11 +174,13 @@ function DashboardPage() {
             </div>
           </div>
           {/* 요약 3개: 같은 모양 카드 대신 한 줄에 구분선으로 */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 'auto', paddingTop: 18, borderTop: '1px solid var(--line)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', marginTop: 'auto', paddingTop: 18, borderTop: '1px solid var(--line)' }}>
             {[
               { label: budgetTerm ? `${budgetTerm.name} 지출` : '지출', value: `${total.toLocaleString()}원`, sub: `${expenses.length}건` },
               { label: '챙길 것', value: `${todoCount}개`, sub: `${withTodos.length}건의 지출`, alert: todoCount > 0 },
               { label: '결정 대기', value: `${waiting.length}건`, sub: `확인·조치 필요 ${needCheck.length}건`, alert: needCheck.length > 0, to: '/expenses' },
+              // 증빙(영수증)이 없는 지출: 누르면 지출 목록에서 그것만 모아 본다
+              { label: '증빙 없음', value: `${noReceipt.length}건`, sub: noReceipt.length ? `${noReceipt.reduce((n, e) => n + e.amount, 0).toLocaleString()}원` : '모두 있어요', alert: noReceipt.length > 0, to: `/expenses?filter=${encodeURIComponent('증빙 없음')}` },
             ].map((it, i) => (
               <div key={it.label} style={{ paddingLeft: i ? 16 : 0, borderLeft: i ? '1px solid var(--line)' : 'none' }}>
                 <div className="muted">{it.label}</div>
