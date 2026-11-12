@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from 'react'
 
 // 페이지 번호 (지출 목록, 거래내역, 기록, 내 정보에서 같이 쓴다)
 // 번호는 5개씩 묶어 보여 준다. « » 5쪽 이동, ‹ › 1쪽 이동
-// 쪽이 하나뿐이면 아무것도 그리지 않는다.
+// 쪽이 하나뿐이어도 번호 줄을 보여 준다 (화살표는 눌리지 않음).
 // keepPosition: 쪽을 바꿔 목록 길이가 달라져도 페이지 번호가 화면에서 같은 자리에 있게 화면을 맞춘다
 //   (예: 마지막 쪽 3개 → 첫 쪽 5개로 가면 목록이 길어져 번호가 화면 아래로 밀려나는 것을 막음)
 function Pager({ page, count, onChange, keepPosition = false }) {
@@ -17,7 +17,6 @@ function Pager({ page, count, onChange, keepPosition = false }) {
     if (moved) window.scrollBy(0, moved)
   }, [page, keepPosition])
 
-  if (count <= 1) return null
   const go = (p) => {
     const next = Math.min(count, Math.max(1, p))
     if (next === page) return

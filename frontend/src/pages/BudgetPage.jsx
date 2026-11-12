@@ -30,7 +30,7 @@ function BudgetRow({ budget, onChanged, setError, editable }) {
 
   return (
     <tr>
-      <td style={{ paddingLeft: 28, color: 'var(--sub)' }}>{budget.category}</td>
+      <td style={{ paddingLeft: 32, color: 'var(--sub)' }}><span style={{ color: 'var(--line-strong)', marginRight: 6 }}>└</span>{budget.category}</td>
       <td className="num">
         {/* 열람 계정은 금액을 글로만 본다 */}
         {editable ? (
@@ -298,6 +298,8 @@ function BudgetPage() {
   const total = { amount: sum(data.budgets, 'amount'), spent: sum(data.budgets, 'spent') }
 
   const remainingTotal = total.amount - total.spent
+  const overLines = data.budgets.filter((x) => x.remaining < 0) // 예산을 넘긴 항목
+  const unusedLines = data.budgets.filter((x) => x.spent === 0 && x.amount > 0) // 아직 한 푼도 안 쓴 항목
   const totalRate = total.amount > 0 ? Math.round((total.spent / total.amount) * 100) : null
 
   return (
@@ -341,7 +343,7 @@ function BudgetPage() {
       </div>
 
       {/* 가운데: 왼쪽 예산 표, 오른쪽 예산 추가 (열람 계정은 표만 넓게) */}
-      <div className="budget-main" style={editable ? undefined : { gridTemplateColumns: 'minmax(0, 1fr)' }}>
+      <div className="budget-main">
         <section>
           <h3 style={{ marginTop: 0 }}>사업별 예산</h3>
           {Object.keys(groups).length === 0 ? (
@@ -359,7 +361,7 @@ function BudgetPage() {
                   return (
                     <tbody key={eventName}>
                       {/* 사업 줄: 소계. 묶인 하위 사업이면 '↳'와 묶음 이름 */}
-                      <tr style={{ background: '#fafbfc', fontWeight: 600 }}>
+                      <tr className="event-row">
                         <td>
                           {top !== eventName && <span className="muted">↳ </span>}
                           {eventName}
@@ -393,9 +395,9 @@ function BudgetPage() {
           )}
         </section>
 
-        {/* 오른쪽: 예산 추가 (새 사업도 여기서 만든다) */}
-        {editable && (
-          <aside style={{ alignContent: 'start', position: 'sticky', top: 16 }}>{/* 표가 길어도 화면을 따라옴 */}
+        {/* 오른쪽 (표가 길어도 화면을 따라옴): 예산 추가(새 사업도 여기서) + 살펴볼 것 */}
+        <aside style={{ display: 'grid', gap: 16, alignContent: 'start', position: 'sticky', top: 16 }}>
+          {editable && (
             <form onSubmit={addBudget} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
               <div>
                 <b>{period.name} 예산 추가</b>
@@ -407,8 +409,37 @@ function BudgetPage() {
               <button type="submit">추가</button>
               <div className="muted">한 사업에 지출 항목이 여러 개면 사업명은 그대로 두고 항목·금액만 바꿔 계속 추가하세요.</div>
             </form>
-          </aside>
-        )}
+          )}
+
+          {/* 살펴볼 것: 예산을 넘긴 항목, 아직 안 쓴 항목, 예산에 없는 지출 */}
+          <section className="card" style={{ marginBottom: 0 }}>
+            <b>살펴볼 것</b>
+            <div style={{ display: 'grid', gap: 12, marginTop: 10, fontSize: 13 }}>
+              <div>
+                <div style={{ color: 'var(--bad)', fontWeight: 600 }}>예산 넘김 {overLines.length}개</div>
+                {overLines.length === 0 ? <div className="muted">없어요</div> : overLines.map((x) => (
+                  <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <span>{x.event_name} · <span className="muted">{x.category}</span></span>
+                    <span className="tnum" style={{ color: 'var(--bad)' }}>+{(-x.remaining).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div style={{ fontWeight: 600 }}>아직 안 쓴 예산 {unusedLines.length}개</div>
+                {unusedLines.length === 0 ? <div className="muted">없어요</div> : unusedLines.map((x) => (
+                  <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <span>{x.event_name} · <span className="muted">{x.category}</span></span>
+                    <span className="tnum muted">{x.amount.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, color: data.unbudgeted.length ? 'var(--warn)' : undefined }}>예산에 없는 지출 {data.unbudgeted.length}건</div>
+                <div className="muted">{data.unbudgeted.length ? '표 아래에서 확인하세요' : '없어요'}</div>
+              </div>
+            </div>
+          </section>
+        </aside>
       </div>
 
       {/* 표 아래: 예산에 없는 지출 | 사업 묶기 (나란히) */}

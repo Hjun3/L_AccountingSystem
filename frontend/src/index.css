@@ -249,3 +249,7 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .avatar.small { width: 32px; height: 32px; font-size: 14px; }
 .sidebar .me .me-link { display: flex; align-items: center; gap: 10px; padding: 6px; margin: 0 -6px; border-radius: var(--r-sm); color: var(--muted); text-decoration: none; }
 .sidebar .me .me-link:hover, .sidebar .me .me-link.active { background: #f2f4f6; }
+
+/* 예산 표: 사업 줄은 파란 세로 띠·진한 바탕·굵은 글씨, 그 아래 항목 줄은 들여 쓰고 └ 표시 */
+.event-row td { background: #eef2f8 !important; font-weight: 700; font-size: 14px; border-top: 2px solid var(--line-strong); }
+.event-row td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
