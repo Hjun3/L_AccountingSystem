@@ -94,7 +94,7 @@ function MonthlyTable({ monthly }) {
   const monthTotal = (m) => monthly.filter((x) => x.month === m).reduce((s, x) => s + x.total, 0)
 
   return (
-    <table style={{ width: '100%' }}>
+    <table className="compact-table">
       <thead>
         <tr>
           <th>사업</th>
@@ -343,9 +343,11 @@ function BudgetPage() {
         </div>
       </div>
 
-      {/* 1줄 (높이 고정): 왼쪽 사업별 예산 표 | 오른쪽 예산 추가 + 결산보고서 */}
-      <div className="budget-row" style={{ height: 500 }}>
-        <section className="panel">
+      {/* 1줄: 왼쪽 사업별 예산 표 | 오른쪽 예산 추가 + 사업 묶기.
+          표 상자는 높이를 차지하지 않게 띄워 두고(absolute), 줄 높이는 오른쪽 카드들 높이에 맞춘다 */}
+      <div className="budget-row" style={{ minHeight: 480 }}>
+        <div style={{ position: 'relative', minHeight: 480 }}>
+        <section className="panel" style={{ position: 'absolute', inset: 0 }}>
           <div className="panel-head"><b>사업별 예산</b><span className="muted">{data.budgets.length}줄 · 표 안에서 스크롤</span></div>
           <div className="panel-body">
             {Object.keys(groups).length === 0 ? (
@@ -395,6 +397,7 @@ function BudgetPage() {
             )}
           </div>
         </section>
+        </div>
 
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0 }}>
           {editable ? (
@@ -440,20 +443,13 @@ function BudgetPage() {
               </div>
             </section>
           )}
-          {/* 결산보고서: 한 줄짜리 */}
-          <section className="card compact-card" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <b>{period.name} 결산보고서</b>
-              <div className="muted">엑셀 (사업별·비목별·지출 내역)</div>
-            </div>
-            {/* 서버가 만든 엑셀 파일을 바로 내려받는 링크 */}
-            <a className="btn primary" href={`${API_URL}/reports/settlement.xlsx?period_id=${period.id}`} download>내려받기</a>
-          </section>
+          {/* 사업 묶기 (예산 추가 바로 아래) */}
+          {editable && <EventGroupCard parents={parents} onChanged={loadGroups} />}
         </aside>
       </div>
 
-      {/* 2줄 (높이 고정): 왼쪽 월별 지출 | 오른쪽 살펴볼 것 */}
-      <div className="budget-row" style={{ height: 320, marginTop: 20, ...(editable ? {} : { gridTemplateColumns: 'minmax(0, 1fr)' }) }}>
+      {/* 2줄 (높이 고정): 왼쪽 월별 지출(표 내용 폭만큼) | 오른쪽 살펴볼 것(남는 폭 전부) */}
+      <div className="budget-row" style={{ height: 280, marginTop: 20, gridTemplateColumns: editable ? 'fit-content(70%) minmax(300px, 1fr)' : 'minmax(0, 1fr)' }}>
         <section className="panel">
           <div className="panel-head"><b>월별 지출</b><span className="muted">사업 x 월</span></div>
           <div className="panel-body"><MonthlyTable monthly={data.monthly} /></div>
@@ -491,8 +487,8 @@ function BudgetPage() {
         ) : null}
       </div>
 
-      {/* 3줄 (내용만큼): 예산에 없는 지출 | 사업 묶기 | 새 임기 만들기 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginTop: 20, alignItems: 'start' }}>
+      {/* 3줄 (내용만큼): 예산에 없는 지출 | 결산보고서 | 새 임기 만들기 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginTop: 20, alignItems: 'stretch' }}>
         <section className="card compact-card">
           <b>예산에 없는 지출</b> <span className="muted">{data.unbudgeted.length}건 · 예산을 추가하거나 이름 오타를 확인하세요</span>
           {data.unbudgeted.length > 0 && (
@@ -506,7 +502,15 @@ function BudgetPage() {
             </div>
           )}
         </section>
-        {editable && <EventGroupCard parents={parents} onChanged={loadGroups} />}
+        {/* 결산보고서: 한 줄짜리 */}
+        <section className="card compact-card" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <b>{period.name} 결산보고서</b>
+            <div className="muted">엑셀 (사업별·비목별·지출 내역)</div>
+          </div>
+          {/* 서버가 만든 엑셀 파일을 바로 내려받는 링크 */}
+          <a className="btn primary" href={`${API_URL}/reports/settlement.xlsx?period_id=${period.id}`} download>내려받기</a>
+        </section>
         {isAdmin(user) && <NewTermForm terms={terms} currentTerm={term} onCreated={(id) => reloadTerms(id)} />}
       </div>
     </div>
