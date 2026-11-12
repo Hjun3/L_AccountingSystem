@@ -288,7 +288,13 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .compact-table.wide { width: 100%; }
 .look-item { min-width: 0; } .look-list { overflow-x: hidden; }
 /* 크게 보기 창: 넓게, 내용이 화면보다 길면 창 안에서 스크롤 */
-.popup.big-view { max-width: 1100px; max-height: 88vh; padding: 20px 24px; }
+.popup.big-view { max-width: 1100px; max-height: 88vh; padding: 20px 24px; display: flex; flex-direction: column; overflow: hidden; }
+.big-view-body { flex: 1; min-height: 0; overflow: auto; margin-top: 12px; }
+.big-view-body thead th { position: sticky; top: 0; z-index: 2; }
 .popup.big-view .look-cols { height: auto; }
 .popup.big-view .look-list { overflow: visible; }
 .popup.big-view .look-item { max-width: none; }
+
+/* 월별 지출의 '월 합계' 줄: 스크롤해도 아래에 붙어 있음 */
+.sticky-total td { position: sticky; bottom: 0; z-index: 2; background: #f2f5fa !important; font-weight: 700; border-top: 1px solid var(--line-strong); }
+.compact-table .sticky-total td:first-child { z-index: 3; }

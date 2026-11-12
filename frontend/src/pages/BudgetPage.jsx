@@ -111,7 +111,7 @@ function MonthlyTable({ monthly, wide = false }) {
             <td className="num" style={{ fontWeight: 600 }}>{months.reduce((s, m) => s + amount(e, m), 0).toLocaleString()}</td>
           </tr>
         ))}
-        <tr style={{ fontWeight: 700, background: '#fafbfc' }}>
+        <tr className="sticky-total">{/* 스크롤해도 상자 아래에 붙어 있음 */}
           <td>월 합계</td>
           {months.map((m) => <td key={m} className="num">{monthTotal(m).toLocaleString()}</td>)}
           <td className="num">{monthly.reduce((s, x) => s + x.total, 0).toLocaleString()}</td>
@@ -135,7 +135,8 @@ function BigView({ title, sub, onClose, children }) {
           <span><b style={{ fontSize: 16 }}>{title}</b> {sub && <span className="muted">{sub}</span>}</span>
           <button onClick={onClose}>닫기</button>
         </div>
-        <div style={{ marginTop: 12 }}>{children}</div>
+        {/* 제목은 고정, 내용만 스크롤 (표 머리글도 위에 고정) */}
+        <div className="big-view-body">{children}</div>
       </div>
     </div>
   )

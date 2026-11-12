@@ -30,6 +30,33 @@ DEMO_YEAR = 2026  # 시연용 가상 데이터의 연도
 
 demo = json.loads((SAMPLE_DIR / "demo_data.json").read_text(encoding="utf-8"))
 
+# 0. 예전 샘플 정리: 예전 버전 샘플에 있던 '학생회장 활동비'를 정확히 같은 줄만 지운다 (직접 입력한 데이터는 건드리지 않음)
+with get_conn() as conn:
+    removed = conn.execute(
+        "DELETE FROM budgets WHERE event_name = '학생회장 활동비' AND category = '활동비' AND amount = 600000"
+    ).rowcount
+    old = conn.execute(
+        "SELECT id FROM expenses WHERE deleted_at IS NULL AND date = '2026-06-10' AND amount = 300000 AND event_name = '학생회장 활동비' "
+        "AND description = '학생회장 활동비 6월분, 활동비 통장으로 이체, 사필영수증 및 통장내역 첨부'"
+    ).fetchall()
+    for r in old:  # 지출은 다른 삭제처럼 '삭제 표시'만 하고 기록을 남긴다
+        conn.execute("UPDATE expenses SET deleted_at = ? WHERE id = ?", (now_text(), r["id"]))
+        conn.execute(
+            "INSERT INTO change_logs (expense_id, action, detail, created_at, actor) VALUES (?, '지출 삭제', ?, ?, '시스템')",
+            (r["id"], "예전 시연 샘플 정리 (학생회장 활동비 예시 교체)", now_text()),
+        )
+    # 예전 샘플 통장 거래 13건: 새 샘플과 잔액이 달라 '다른 거래'로 보이므로, 값이 정확히 같은 것만 지운다 (중복 방지)
+    OLD_BANK = [("2026-03-02T10:00:00", 1500000, 3500000), ("2026-03-04T13:20:11", 48000, 3452000), ("2026-03-04T18:05:42", 320000, 3132000),
+                ("2026-03-21T15:00:00", 1800000, 1332000), ("2026-03-22T21:10:03", 150000, 1182000), ("2026-04-15T19:30:27", 210000, 972000),
+                ("2026-04-16T01:12:55", 23000, 949000), ("2026-04-16T09:40:00", 23000, 972000), ("2026-04-20T12:00:00", 15600, 956400),
+                ("2026-05-15T14:32:00", 80000, 876400), ("2026-05-20T11:00:00", 60000, 816400), ("2026-06-03T16:45:10", 75000, 741400),
+                ("2026-06-21T00:00:01", 312, 741712)]
+    # 예전 샘플 일정 'MT (1박 2일)'(하루짜리)은 새 샘플의 'MT'(3/21~22, 여러 날)로 바뀌었다
+    old_schedule = conn.execute("DELETE FROM schedules WHERE date = '2026-03-21' AND title = 'MT (1박 2일)' AND end_date IS NULL").rowcount
+    old_bank = sum(conn.execute("DELETE FROM bank_transactions WHERE datetime = ? AND amount = ? AND balance = ?", row).rowcount for row in OLD_BANK)
+if removed or old or old_bank or old_schedule:
+    print(f"[예전 샘플 정리] 학생회장 활동비 예산 {removed}줄·지출 {len(old)}건, 예전 통장 거래 {old_bank}건, 예전 일정 {old_schedule}건 정리")
+
 # 1. 예산
 with get_conn() as conn:
     # 2026년 임기가 없으면 만들고, 그 임기의 기간(학기 전/1학기/여름방학/2학기)에 예산을 넣는다
