@@ -274,3 +274,16 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .compact-table th, .compact-table td { padding: 6px 12px; white-space: nowrap; }
 .compact-table td:first-child, .compact-table th:first-child { position: sticky; left: 0; background: var(--surface); }
 .compact-table td:first-child { z-index: 1; } .compact-table th:first-child { z-index: 3; }
+/* 살펴볼 것: 세 칸으로 나누고, 칸마다 목록만 안에서 스크롤 (이름 바로 옆에 금액) */
+.look-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); height: 100%; }
+.look-col { display: flex; flex-direction: column; min-height: 0; padding: 14px 16px; border-left: 1px solid var(--line); font-size: 13px; }
+.look-col:first-child { border-left: none; }
+.look-list { flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 6px; align-content: start; }
+.look-item { display: flex; justify-content: space-between; gap: 8px; max-width: 280px; }
+.look-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.look-cols.stacked { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(3, minmax(0, 1fr)); }
+.look-cols.stacked .look-col { border-left: none; border-top: 1px solid var(--line); }
+.look-cols.stacked .look-col:first-child { border-top: none; }
+.look-item .tnum { flex-shrink: 0; }  /* 금액은 줄이지 않고, 길면 이름 쪽이 '…'로 줄어든다 */
+.compact-table.wide { width: 100%; }
+.look-item { min-width: 0; } .look-list { overflow-x: hidden; }

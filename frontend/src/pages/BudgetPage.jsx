@@ -86,7 +86,8 @@ function PeriodDates({ period, onSaved, setError }) {
 }
 
 // 사업 x 월 지출 표. monthly: [{event_name, month, total}]
-function MonthlyTable({ monthly }) {
+// wide: 상자 폭을 다 쓴다 (월별 지출이 한 줄을 다 쓸 때)
+function MonthlyTable({ monthly, wide = false }) {
   if (monthly.length === 0) return <p className="muted" style={{ padding: 16, margin: 0 }}>이 기간에 지출이 없습니다.</p>
   const months = [...new Set(monthly.map((m) => m.month))].sort()
   const events = [...new Set(monthly.map((m) => m.event_name))]
@@ -94,7 +95,7 @@ function MonthlyTable({ monthly }) {
   const monthTotal = (m) => monthly.filter((x) => x.month === m).reduce((s, x) => s + x.total, 0)
 
   return (
-    <table className="compact-table">
+    <table className={wide ? 'compact-table wide' : 'compact-table'}>
       <thead>
         <tr>
           <th>사업</th>
@@ -173,6 +174,7 @@ function EventGroupCard({ parents, onChanged }) {
 // 새 임기 만들기 (관리자만): 다음 학생회가 쓸 때. 지금 임기의 예산 구조를 복사할 수 있다.
 function NewTermForm({ terms, currentTerm, onCreated }) {
   const nextYear = Math.max(new Date().getFullYear(), ...terms.map((t) => t.year)) + 1
+  const [open, setOpen] = useState(false) // 작은 창이 열려 있는지
   const [year, setYear] = useState(nextYear)
   const [copy, setCopy] = useState(true)
   const [error, setError] = useState('')
@@ -187,6 +189,7 @@ function NewTermForm({ terms, currentTerm, onCreated }) {
         method: 'POST',
         body: JSON.stringify({ year: Number(year), copy_budgets_from: copy && currentTerm ? currentTerm.id : null }),
       })
+      setOpen(false)
       onCreated(list.find((t) => t.year === Number(year)).id)
     } catch (e) {
       setError(e.message)
@@ -194,19 +197,28 @@ function NewTermForm({ terms, currentTerm, onCreated }) {
   }
 
   return (
-    <form onSubmit={submit} className="card compact-card">
-      <b>새 임기 만들기</b> <span className="muted">다음 학생회가 쓸 때 (기간 4개가 함께 생김)</span>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
-        <span><input inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ''))} style={{ width: 72 }} /> 년</span>
-        {currentTerm && (
-          <label style={{ fontSize: 13 }}>
-            <input type="checkbox" checked={copy} onChange={(e) => setCopy(e.target.checked)} /> {currentTerm.name} 예산 복사
-          </label>
-        )}
-        <button type="submit" style={{ marginLeft: 'auto' }}>만들기</button>
-      </div>
-      {error && <div style={{ color: 'var(--bad)', fontSize: 12, marginTop: 6 }}>{error}</div>}
-    </form>
+    <>
+      <button type="button" onClick={() => setOpen(true)} style={{ marginLeft: 8 }} title="다음 학생회가 쓸 새 임기 만들기 (관리자)">+ 새 임기</button>
+      {open && (
+        <div className="popup-bg" onClick={() => setOpen(false)}>
+          <form className="popup" onSubmit={submit} onClick={(e) => e.stopPropagation()} style={{ display: 'grid', gap: 12 }}>
+            <b>새 임기 만들기</b>
+            <span className="muted" style={{ marginTop: -6 }}>다음 학생회가 쓸 때 만듭니다. 기간 4개(학기 전/1학기/여름방학/2학기)가 함께 만들어집니다.</span>
+            <span><input inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ''))} style={{ width: 80 }} autoFocus /> 년</span>
+            {currentTerm && (
+              <label style={{ fontSize: 13 }}>
+                <input type="checkbox" checked={copy} onChange={(e) => setCopy(e.target.checked)} /> {currentTerm.name} 예산(사업·지출 항목·금액) 복사
+              </label>
+            )}
+            {error && <span style={{ color: 'var(--bad)', fontSize: 13 }}>{error}</span>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+              <button type="button" onClick={() => setOpen(false)}>닫기</button>
+              <button type="submit">만들기</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -301,6 +313,29 @@ function BudgetPage() {
   const remainingTotal = total.amount - total.spent
   const overLines = data.budgets.filter((x) => x.remaining < 0) // 예산을 넘긴 항목
   const unusedLines = data.budgets.filter((x) => x.spent === 0 && x.amount > 0) // 아직 한 푼도 안 쓴 항목
+
+  // 살펴볼 것: 세 칸(예산 넘김 | 아직 안 쓴 예산 | 예산에 없는 지출). 칸마다 이름 옆에 금액, 많으면 칸 안에서 스크롤
+  const lookColumn = (title, color, rows, empty) => (
+    <div className="look-col">
+      <div style={{ fontWeight: 600, color, marginBottom: 6 }}>{title} {rows.length}</div>
+      <div className="look-list">
+        {rows.length === 0 ? <div className="muted">{empty}</div> : rows.map((r) => (
+          <div key={r.key} className="look-item" title={`${r.name} · ${r.category}`}>
+            <span className="look-name">{r.name} <span className="muted">· {r.category}</span></span>
+            <span className="tnum" style={{ color: r.color }}>{r.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+  // stacked: 좁은 칸(열람 계정의 오른쪽 칸)에서는 세 칸을 위아래로 쌓는다
+  const lookBox = (stacked) => (
+    <div className={stacked ? 'look-cols stacked' : 'look-cols'}>
+      {lookColumn('예산 넘김', 'var(--bad)', overLines.map((x) => ({ key: x.id, name: x.event_name, category: x.category, value: `+${(-x.remaining).toLocaleString()}`, color: 'var(--bad)' })), '없어요')}
+      {lookColumn('아직 안 쓴 예산', 'var(--text)', unusedLines.map((x) => ({ key: x.id, name: x.event_name, category: x.category, value: x.amount.toLocaleString(), color: 'var(--muted)' })), '없어요')}
+      {lookColumn('예산에 없는 지출', data.unbudgeted.length ? 'var(--warn)' : 'var(--text)', data.unbudgeted.map((u) => ({ key: u.event_name + u.category, name: u.event_name, category: u.category, value: u.spent.toLocaleString(), color: 'var(--warn)' })), '없어요')}
+    </div>
+  )
   const totalRate = total.amount > 0 ? Math.round((total.spent / total.amount) * 100) : null
 
   return (
@@ -316,6 +351,7 @@ function BudgetPage() {
               {p.name}
             </button>
           ))}
+          {isAdmin(user) && <NewTermForm terms={terms} currentTerm={term} onCreated={(id) => reloadTerms(id)} />}
         </div>
         {editable ? (
           <PeriodDates key={period.id + period.start_date + period.end_date} period={period} onSaved={() => { loadPeriods(); reloadTerms(termId) }} setError={setError} />
@@ -340,6 +376,11 @@ function BudgetPage() {
         <div>
           <div className="muted">집행률</div>
           <RateBar rate={totalRate} over={total.spent > total.amount} width={140} />
+        </div>
+        {/* 이 기간 결산보고서 (서버가 만든 엑셀 파일을 바로 내려받는 링크) */}
+        <div>
+          <div className="muted">{period.name} 결산보고서</div>
+          <a className="btn primary" href={`${API_URL}/reports/settlement.xlsx?period_id=${period.id}`} download style={{ marginTop: 4 }}>엑셀 내려받기</a>
         </div>
       </div>
 
@@ -413,33 +454,10 @@ function BudgetPage() {
               <div className="muted" style={{ marginTop: 'auto' }}>한 사업에 지출 항목이 여러 개면 사업명은 그대로 두고 항목·금액만 바꿔 계속 추가하세요.</div>
             </form>
           ) : (
-            <section className="panel" style={{ flex: 1 }}>
+            <section className="panel" style={{ height: 480 }}>{/* 높이 고정: 항목이 많아도 칸 안에서 스크롤 */}
               <div className="panel-head"><b>살펴볼 것</b></div>
-              <div className="panel-body" style={{ padding: '4px 18px 16px' }}>
-            <div style={{ display: 'grid', gap: 12, marginTop: 10, fontSize: 13 }}>
-              <div>
-                <div style={{ color: 'var(--bad)', fontWeight: 600 }}>예산 넘김 {overLines.length}개</div>
-                {overLines.length === 0 ? <div className="muted">없어요</div> : overLines.map((x) => (
-                  <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                    <span>{x.event_name} · <span className="muted">{x.category}</span></span>
-                    <span className="tnum" style={{ color: 'var(--bad)' }}>+{(-x.remaining).toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <div style={{ fontWeight: 600 }}>아직 안 쓴 예산 {unusedLines.length}개</div>
-                {unusedLines.length === 0 ? <div className="muted">없어요</div> : unusedLines.map((x) => (
-                  <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                    <span>{x.event_name} · <span className="muted">{x.category}</span></span>
-                    <span className="tnum muted">{x.amount.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <div style={{ fontWeight: 600, color: data.unbudgeted.length ? 'var(--warn)' : undefined }}>예산에 없는 지출 {data.unbudgeted.length}건</div>
-                <div className="muted">{data.unbudgeted.length ? '표 아래에서 확인하세요' : '없어요'}</div>
-              </div>
-            </div>
+              <div className="panel-body" style={{ overflow: 'hidden' }}>
+            {lookBox(true)}
               </div>
             </section>
           )}
@@ -452,67 +470,18 @@ function BudgetPage() {
       <div className="budget-row" style={{ height: 280, marginTop: 20, gridTemplateColumns: editable ? 'fit-content(70%) minmax(300px, 1fr)' : 'minmax(0, 1fr)' }}>
         <section className="panel">
           <div className="panel-head"><b>월별 지출</b><span className="muted">사업 x 월</span></div>
-          <div className="panel-body"><MonthlyTable monthly={data.monthly} /></div>
+          <div className="panel-body"><MonthlyTable monthly={data.monthly} wide={!editable} /></div>
         </section>
         {editable ? (
           <section className="panel">
             <div className="panel-head"><b>살펴볼 것</b></div>
-            <div className="panel-body" style={{ padding: '4px 18px 16px' }}>
-            <div style={{ display: 'grid', gap: 12, marginTop: 10, fontSize: 13 }}>
-              <div>
-                <div style={{ color: 'var(--bad)', fontWeight: 600 }}>예산 넘김 {overLines.length}개</div>
-                {overLines.length === 0 ? <div className="muted">없어요</div> : overLines.map((x) => (
-                  <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                    <span>{x.event_name} · <span className="muted">{x.category}</span></span>
-                    <span className="tnum" style={{ color: 'var(--bad)' }}>+{(-x.remaining).toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <div style={{ fontWeight: 600 }}>아직 안 쓴 예산 {unusedLines.length}개</div>
-                {unusedLines.length === 0 ? <div className="muted">없어요</div> : unusedLines.map((x) => (
-                  <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                    <span>{x.event_name} · <span className="muted">{x.category}</span></span>
-                    <span className="tnum muted">{x.amount.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <div style={{ fontWeight: 600, color: data.unbudgeted.length ? 'var(--warn)' : undefined }}>예산에 없는 지출 {data.unbudgeted.length}건</div>
-                <div className="muted">{data.unbudgeted.length ? '표 아래에서 확인하세요' : '없어요'}</div>
-              </div>
-            </div>
+            <div className="panel-body" style={{ overflow: 'hidden' }}>
+            {lookBox(false)}
             </div>
           </section>
         ) : null}
       </div>
 
-      {/* 3줄 (내용만큼): 예산에 없는 지출 | 결산보고서 | 새 임기 만들기 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginTop: 20, alignItems: 'stretch' }}>
-        <section className="card compact-card">
-          <b>예산에 없는 지출</b> <span className="muted">{data.unbudgeted.length}건 · 예산을 추가하거나 이름 오타를 확인하세요</span>
-          {data.unbudgeted.length > 0 && (
-            <div style={{ display: 'grid', gap: 6, marginTop: 10, maxHeight: 132, overflowY: 'auto' }}>
-              {data.unbudgeted.map((u) => (
-                <div key={u.event_name + u.category} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
-                  <span>{u.event_name} · <span className="muted">{u.category}</span></span>
-                  <span className="tnum" style={{ fontWeight: 600 }}>{won(u.spent)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-        {/* 결산보고서: 한 줄짜리 */}
-        <section className="card compact-card" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <b>{period.name} 결산보고서</b>
-            <div className="muted">엑셀 (사업별·비목별·지출 내역)</div>
-          </div>
-          {/* 서버가 만든 엑셀 파일을 바로 내려받는 링크 */}
-          <a className="btn primary" href={`${API_URL}/reports/settlement.xlsx?period_id=${period.id}`} download>내려받기</a>
-        </section>
-        {isAdmin(user) && <NewTermForm terms={terms} currentTerm={term} onCreated={(id) => reloadTerms(id)} />}
-      </div>
     </div>
   )
 }
