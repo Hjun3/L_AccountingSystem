@@ -253,3 +253,20 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 /* 예산 표: 사업 줄은 파란 세로 띠·진한 바탕·굵은 글씨, 그 아래 항목 줄은 들여 쓰고 └ 표시 */
 .event-row td { background: #eef2f8 !important; font-weight: 700; font-size: 14px; border-top: 2px solid var(--line-strong); }
 .event-row td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
+
+/* 고정 크기 상자: 머리(제목)는 그대로, 몸통만 안에서 스크롤. 표 머리글은 스크롤해도 위에 붙어 있음 */
+.panel { display: flex; flex-direction: column; min-height: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.panel-body { flex: 1; min-height: 0; overflow: auto; }
+.panel-body thead th { position: sticky; top: 0; z-index: 2; }
+/* 예산 화면 한 줄: 왼쪽 넓게, 오른쪽 320px. 칸 높이는 줄 높이에 맞춤 */
+.budget-row { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; }
+.budget-row > * { min-height: 0; }
+@media (max-width: 1000px) { .budget-row { grid-template-columns: minmax(0, 1fr); height: auto !important; } .budget-row .panel { height: 480px; } }
+/* 내용만큼 납작한 카드 */
+.compact-card { margin-bottom: 0; padding: 14px 18px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border: 1px solid var(--line-strong); border-radius: 14px; font-size: 12px; }
+.chip button { height: 20px; width: 20px; padding: 0; border: none; border-radius: 50%; font-size: 13px; line-height: 1; }
+.budget-row aside, .budget-row aside > * { min-width: 0; }
+.budget-row aside input { width: 100%; min-width: 0; }
+.budget-row form label { display: flex; flex-direction: column; gap: 5px; }

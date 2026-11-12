@@ -87,15 +87,14 @@ function PeriodDates({ period, onSaved, setError }) {
 
 // 사업 x 월 지출 표. monthly: [{event_name, month, total}]
 function MonthlyTable({ monthly }) {
-  if (monthly.length === 0) return <div className="card muted">이 기간에 지출이 없습니다.</div>
+  if (monthly.length === 0) return <p className="muted" style={{ padding: 16, margin: 0 }}>이 기간에 지출이 없습니다.</p>
   const months = [...new Set(monthly.map((m) => m.month))].sort()
   const events = [...new Set(monthly.map((m) => m.event_name))]
   const amount = (e, m) => monthly.find((x) => x.event_name === e && x.month === m)?.total || 0
   const monthTotal = (m) => monthly.filter((x) => x.month === m).reduce((s, x) => s + x.total, 0)
 
   return (
-    <div className="table-box">
-    <table>
+    <table style={{ width: '100%' }}>
       <thead>
         <tr>
           <th>사업</th>
@@ -118,7 +117,6 @@ function MonthlyTable({ monthly }) {
         </tr>
       </tbody>
     </table>
-    </div>
   )
 }
 
@@ -149,24 +147,26 @@ function EventGroupCard({ parents, onChanged }) {
   }
 
   return (
-    <form onSubmit={submit} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
-      <b>사업 묶기</b>
-      <p className="muted" style={{ margin: 0 }}>작은 사업을 큰 사업 아래로 묶어요. 사업명은 그대로 두고 표·대시보드·결산보고서에서 함께 보여 줘요.</p>
-      <label>하위 사업 <SuggestInput list="event-names" placeholder="예: MT 사전답사" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required /></label>
-      <label>상위 사업 <SuggestInput list="event-names" placeholder="예: MT" value={form.parent_name} onChange={(e) => setForm({ ...form, parent_name: e.target.value })} required /></label>
-      <button type="submit">묶기</button>
-      {error && <span style={{ color: 'var(--bad)', fontSize: 12 }}>{error}</span>}
+    <section className="card compact-card">
+      <b>사업 묶기</b> <span className="muted">작은 사업을 큰 사업 아래로 (예: MT 사전답사 → MT)</span>
+      <form onSubmit={submit} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 10 }}>
+        <SuggestInput list="event-names" placeholder="하위 사업" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required style={{ width: '100%' }} />
+        <span className="muted">→</span>
+        <SuggestInput list="event-names" placeholder="상위 사업" value={form.parent_name} onChange={(e) => setForm({ ...form, parent_name: e.target.value })} required style={{ width: '100%' }} />
+        <button type="submit">묶기</button>
+      </form>
+      {error && <div style={{ color: 'var(--bad)', fontSize: 12, marginTop: 6 }}>{error}</div>}
       {Object.keys(parents).length > 0 && (
-        <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
           {Object.entries(parents).map(([child, parent]) => (
-            <div key={child} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-              <span style={{ flex: 1, minWidth: 0 }}><b>{parent}</b> <span className="muted">←</span> {child}</span>
-              <button type="button" onClick={() => remove(child)} style={{ height: 24, fontSize: 12, padding: '0 8px' }}>풀기</button>
-            </div>
+            <span key={child} className="chip">
+              {child} <span className="muted">→</span> <b>{parent}</b>
+              <button type="button" onClick={() => remove(child)} title="묶음 풀기">×</button>
+            </span>
           ))}
         </div>
       )}
-    </form>
+    </section>
   )
 }
 
@@ -194,17 +194,18 @@ function NewTermForm({ terms, currentTerm, onCreated }) {
   }
 
   return (
-    <form onSubmit={submit} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0, alignContent: 'start' }}>
-      <b>새 임기 만들기</b>
-      <span className="muted" style={{ marginTop: -6 }}>다음 학생회가 쓸 때 만듭니다. 기간 4개(학기 전/1학기/여름방학/2학기)가 함께 만들어집니다.</span>
-      <span><input inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ''))} style={{ width: 80 }} /> 년</span>
-      {currentTerm && (
-        <label>
-          <input type="checkbox" checked={copy} onChange={(e) => setCopy(e.target.checked)} /> {currentTerm.name} 예산(사업·지출 항목·금액) 복사
-        </label>
-      )}
-      <button type="submit" style={{ justifySelf: 'start' }}>만들기</button>
-      {error && <span style={{ color: 'var(--bad)' }}>{error}</span>}
+    <form onSubmit={submit} className="card compact-card">
+      <b>새 임기 만들기</b> <span className="muted">다음 학생회가 쓸 때 (기간 4개가 함께 생김)</span>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+        <span><input inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ''))} style={{ width: 72 }} /> 년</span>
+        {currentTerm && (
+          <label style={{ fontSize: 13 }}>
+            <input type="checkbox" checked={copy} onChange={(e) => setCopy(e.target.checked)} /> {currentTerm.name} 예산 복사
+          </label>
+        )}
+        <button type="submit" style={{ marginLeft: 'auto' }}>만들기</button>
+      </div>
+      {error && <div style={{ color: 'var(--bad)', fontSize: 12, marginTop: 6 }}>{error}</div>}
     </form>
   )
 }
@@ -342,15 +343,15 @@ function BudgetPage() {
         </div>
       </div>
 
-      {/* 가운데: 왼쪽 예산 표, 오른쪽 예산 추가 (열람 계정은 표만 넓게) */}
-      <div className="budget-main">
-        <section>
-          <h3 style={{ marginTop: 0 }}>사업별 예산</h3>
-          {Object.keys(groups).length === 0 ? (
-            <div className="card muted">{period.name}에 등록된 예산이 없습니다. 예산계획서의 사업·지출 항목별 금액을 오른쪽에서 추가하세요.</div>
-          ) : (
-            <div className="table-box">
-              <table>
+      {/* 1줄 (높이 고정): 왼쪽 사업별 예산 표 | 오른쪽 예산 추가 + 결산보고서 */}
+      <div className="budget-row" style={{ height: 500 }}>
+        <section className="panel">
+          <div className="panel-head"><b>사업별 예산</b><span className="muted">{data.budgets.length}줄 · 표 안에서 스크롤</span></div>
+          <div className="panel-body">
+            {Object.keys(groups).length === 0 ? (
+              <p className="muted" style={{ padding: 16 }}>{period.name}에 등록된 예산이 없습니다. 예산계획서의 사업·지출 항목별 금액을 오른쪽에서 추가하세요.</p>
+            ) : (
+              <table style={{ width: '100%' }}>
                 <thead>
                   <tr><th>사업 · 항목</th><th className="num">예산액</th><th className="num">지출</th><th className="num">남은 금액</th><th>집행률</th><th></th></tr>
                 </thead>
@@ -391,16 +392,13 @@ function BudgetPage() {
                   )
                 })}
               </table>
-            </div>
-          )}
-          <h3>월별 지출</h3>
-          <MonthlyTable monthly={data.monthly} />
+            )}
+          </div>
         </section>
 
-        {/* 오른쪽 (표가 길어도 화면을 따라옴): 예산 추가(새 사업도 여기서) + 살펴볼 것 */}
-        <aside style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
-          {editable && (
-            <form onSubmit={addBudget} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0 }}>
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0 }}>
+          {editable ? (
+            <form onSubmit={addBudget} className="card" style={{ display: 'grid', gap: 10, marginBottom: 0, flex: 1, alignContent: 'start' }}>
               <div>
                 <b>{period.name} 예산 추가</b>
                 <div className="muted" style={{ marginTop: 2 }}>새 사업도 여기서 만들어요. 사업명에 목록에 없는 새 이름을 쓰면 새 사업으로 추가돼요.</div>
@@ -409,13 +407,12 @@ function BudgetPage() {
               <label>지출 항목 <SuggestInput list="categories" placeholder="예: 급량비" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required /></label>
               <label>예산액(원) <input inputMode="numeric" placeholder="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9]/g, '') })} required /></label>
               <button type="submit">추가</button>
-              <div className="muted">한 사업에 지출 항목이 여러 개면 사업명은 그대로 두고 항목·금액만 바꿔 계속 추가하세요.</div>
+              <div className="muted" style={{ marginTop: 'auto' }}>한 사업에 지출 항목이 여러 개면 사업명은 그대로 두고 항목·금액만 바꿔 계속 추가하세요.</div>
             </form>
-          )}
-
-          {/* 살펴볼 것: 예산을 넘긴 항목, 아직 안 쓴 항목, 예산에 없는 지출 */}
-          <section className="card" style={{ marginBottom: 0 }}>
-            <b>살펴볼 것</b>
+          ) : (
+            <section className="panel" style={{ flex: 1 }}>
+              <div className="panel-head"><b>살펴볼 것</b></div>
+              <div className="panel-body" style={{ padding: '4px 18px 16px' }}>
             <div style={{ display: 'grid', gap: 12, marginTop: 10, fontSize: 13 }}>
               <div>
                 <div style={{ color: 'var(--bad)', fontWeight: 600 }}>예산 넘김 {overLines.length}개</div>
@@ -440,27 +437,66 @@ function BudgetPage() {
                 <div className="muted">{data.unbudgeted.length ? '표 아래에서 확인하세요' : '없어요'}</div>
               </div>
             </div>
-          </section>
-
-          {/* 결산보고서: 버튼이 있는 작은 카드 */}
-          <section className="card" style={{ marginBottom: 0 }}>
-            <b>{period.name} 결산보고서</b>
-            <div className="muted" style={{ margin: '2px 0 10px' }}>엑셀: 사업별 결산, 비목별 집계, 지출 내역 시트</div>
+              </div>
+            </section>
+          )}
+          {/* 결산보고서: 한 줄짜리 */}
+          <section className="card compact-card" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <b>{period.name} 결산보고서</b>
+              <div className="muted">엑셀 (사업별·비목별·지출 내역)</div>
+            </div>
             {/* 서버가 만든 엑셀 파일을 바로 내려받는 링크 */}
-            <a className="btn primary" href={`${API_URL}/reports/settlement.xlsx?period_id=${period.id}`} download style={{ width: '100%', justifyContent: 'center' }}>엑셀 내려받기</a>
+            <a className="btn primary" href={`${API_URL}/reports/settlement.xlsx?period_id=${period.id}`} download>내려받기</a>
           </section>
         </aside>
       </div>
 
-      {/* 아래 줄: 예산에 없는 지출 | 사업 묶기 | 새 임기 만들기(관리자) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginTop: 24, alignItems: 'start' }}>
-        <section className="card" style={{ marginBottom: 0 }}>
-          <b>예산에 없는 지출</b> <span className="muted">{data.unbudgeted.length}건</span>
-          <p className="muted" style={{ marginTop: 2 }}>예산에 없는 사업명·지출 항목으로 등록된 지출이에요. 예산을 추가하거나 이름 오타를 확인하세요.</p>
-          {data.unbudgeted.length === 0 ? (
-            <p className="muted">없습니다.</p>
-          ) : (
-            <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+      {/* 2줄 (높이 고정): 왼쪽 월별 지출 | 오른쪽 살펴볼 것 */}
+      <div className="budget-row" style={{ height: 320, marginTop: 20, ...(editable ? {} : { gridTemplateColumns: 'minmax(0, 1fr)' }) }}>
+        <section className="panel">
+          <div className="panel-head"><b>월별 지출</b><span className="muted">사업 x 월</span></div>
+          <div className="panel-body"><MonthlyTable monthly={data.monthly} /></div>
+        </section>
+        {editable ? (
+          <section className="panel">
+            <div className="panel-head"><b>살펴볼 것</b></div>
+            <div className="panel-body" style={{ padding: '4px 18px 16px' }}>
+            <div style={{ display: 'grid', gap: 12, marginTop: 10, fontSize: 13 }}>
+              <div>
+                <div style={{ color: 'var(--bad)', fontWeight: 600 }}>예산 넘김 {overLines.length}개</div>
+                {overLines.length === 0 ? <div className="muted">없어요</div> : overLines.map((x) => (
+                  <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <span>{x.event_name} · <span className="muted">{x.category}</span></span>
+                    <span className="tnum" style={{ color: 'var(--bad)' }}>+{(-x.remaining).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div style={{ fontWeight: 600 }}>아직 안 쓴 예산 {unusedLines.length}개</div>
+                {unusedLines.length === 0 ? <div className="muted">없어요</div> : unusedLines.map((x) => (
+                  <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <span>{x.event_name} · <span className="muted">{x.category}</span></span>
+                    <span className="tnum muted">{x.amount.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, color: data.unbudgeted.length ? 'var(--warn)' : undefined }}>예산에 없는 지출 {data.unbudgeted.length}건</div>
+                <div className="muted">{data.unbudgeted.length ? '표 아래에서 확인하세요' : '없어요'}</div>
+              </div>
+            </div>
+            </div>
+          </section>
+        ) : null}
+      </div>
+
+      {/* 3줄 (내용만큼): 예산에 없는 지출 | 사업 묶기 | 새 임기 만들기 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginTop: 20, alignItems: 'start' }}>
+        <section className="card compact-card">
+          <b>예산에 없는 지출</b> <span className="muted">{data.unbudgeted.length}건 · 예산을 추가하거나 이름 오타를 확인하세요</span>
+          {data.unbudgeted.length > 0 && (
+            <div style={{ display: 'grid', gap: 6, marginTop: 10, maxHeight: 132, overflowY: 'auto' }}>
               {data.unbudgeted.map((u) => (
                 <div key={u.event_name + u.category} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
                   <span>{u.event_name} · <span className="muted">{u.category}</span></span>
@@ -473,8 +509,6 @@ function BudgetPage() {
         {editable && <EventGroupCard parents={parents} onChanged={loadGroups} />}
         {isAdmin(user) && <NewTermForm terms={terms} currentTerm={term} onCreated={(id) => reloadTerms(id)} />}
       </div>
-
-
     </div>
   )
 }
