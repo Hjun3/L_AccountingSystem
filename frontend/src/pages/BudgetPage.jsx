@@ -121,6 +121,26 @@ function MonthlyTable({ monthly, wide = false }) {
   )
 }
 
+// 크게 보기 창: 상자 안에서 스크롤하던 내용을 큰 창에 펼쳐 보여 준다. [닫기], 창 바깥 클릭, Esc로 닫힘
+function BigView({ title, sub, onClose, children }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="popup-bg" onClick={onClose}>
+      <div className="popup big-view" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="panel-head" style={{ padding: '0 0 12px' }}>
+          <span><b style={{ fontSize: 16 }}>{title}</b> {sub && <span className="muted">{sub}</span>}</span>
+          <button onClick={onClose}>닫기</button>
+        </div>
+        <div style={{ marginTop: 12 }}>{children}</div>
+      </div>
+    </div>
+  )
+}
+
 // 사업 묶기: 하위 사업을 상위 사업 아래로 (예: MT 사전답사 → MT). 사업명은 그대로, 표·대시보드·결산에서 묶어 보여 준다
 function EventGroupCard({ parents, onChanged }) {
   const [form, setForm] = useState({ event_name: '', parent_name: '' })
@@ -230,6 +250,7 @@ function BudgetPage() {
   const [form, setForm] = useState({ event_name: '', category: '', amount: '' })
   const [error, setError] = useState('')
   const [parents, setParents] = useState({}) // 사업 묶음 { 하위: 상위 }
+  const [bigView, setBigView] = useState(null) // 크게 보기 창: 'budget' | 'monthly' | 'look' | null
   const user = useUser()
   const editable = canEdit(user) // 열람 계정은 예산을 보기만 한다
   const { terms, termId, reloadTerms } = useTerm()
@@ -314,6 +335,53 @@ function BudgetPage() {
   const overLines = data.budgets.filter((x) => x.remaining < 0) // 예산을 넘긴 항목
   const unusedLines = data.budgets.filter((x) => x.spent === 0 && x.amount > 0) // 아직 한 푼도 안 쓴 항목
 
+  const budgetTable = (
+              <table style={{ width: '100%' }}>
+                <thead>
+                  <tr><th>사업 · 항목</th><th className="num">예산액</th><th className="num">지출</th><th className="num">남은 금액</th><th>집행률</th><th></th></tr>
+                </thead>
+                {Object.entries(groups).map(([eventName, list]) => {
+                  const b = sum(list, 'amount'), sp = sum(list, 'spent')
+                  const top = topEvent(eventName, parents)
+                  const t = tops[top]
+                  return (
+                    <tbody key={eventName}>
+                      {/* 사업 줄: 소계. 묶인 하위 사업이면 '↳'와 묶음 이름 */}
+                      <tr className="event-row">
+                        <td>
+                          {top !== eventName && <span className="muted">↳ </span>}
+                          {eventName}
+                          {top !== eventName && <span className="muted" style={{ fontWeight: 400 }}> · {top} 묶음</span>}
+                        </td>
+                        <td className="num">{b.toLocaleString()}</td>
+                        <td className="num">{sp.toLocaleString()}</td>
+                        <td className="num" style={{ color: b - sp < 0 ? 'var(--bad)' : 'inherit' }}>{(b - sp).toLocaleString()}</td>
+                        <td><RateBar rate={b > 0 ? Math.round((sp / b) * 100) : null} over={sp > b} /></td>
+                        <td />
+                      </tr>
+                      {list.map((x) => (
+                        <BudgetRow key={x.id + ':' + x.amount} budget={x} onChanged={setData} setError={setError} editable={editable} />
+                      ))}
+                      {/* 묶음의 마지막 사업 뒤에 묶음 합계 (사업이 2개 이상일 때만) */}
+                      {t.count >= 2 && t.last === eventName && (
+                        <tr style={{ fontWeight: 700, borderTop: '2px solid var(--line-strong)' }}>
+                          <td>{top} 묶음 합계</td>
+                          <td className="num">{t.amount.toLocaleString()}</td>
+                          <td className="num">{t.spent.toLocaleString()}</td>
+                          <td className="num" style={{ color: t.amount - t.spent < 0 ? 'var(--bad)' : 'inherit' }}>{(t.amount - t.spent).toLocaleString()}</td>
+                          <td><RateBar rate={t.amount > 0 ? Math.round((t.spent / t.amount) * 100) : null} over={t.spent > t.amount} /></td>
+                          <td />
+                        </tr>
+                      )}
+                    </tbody>
+                  )
+                })}
+              </table>
+  )
+  const monthlyTotal = data.monthly.reduce((n, m) => n + m.total, 0)
+  const monthlySub = `사업 ${new Set(data.monthly.map((m) => m.event_name)).size}개 · 합계 ${monthlyTotal.toLocaleString()}원`
+  const bigButton = (key) => <button onClick={() => setBigView(key)} style={{ height: 26, fontSize: 12, padding: '0 10px' }}>크게 보기</button>
+
   // 살펴볼 것: 세 칸(예산 넘김 | 아직 안 쓴 예산 | 예산에 없는 지출). 칸마다 이름 옆에 금액, 많으면 칸 안에서 스크롤
   const lookColumn = (title, color, rows, empty) => (
     <div className="look-col">
@@ -389,53 +457,11 @@ function BudgetPage() {
       <div className="budget-row" style={{ minHeight: 480 }}>
         <div style={{ position: 'relative', minHeight: 480 }}>
         <section className="panel" style={{ position: 'absolute', inset: 0 }}>
-          <div className="panel-head"><b>사업별 예산</b><span className="muted">{data.budgets.length}줄 · 표 안에서 스크롤</span></div>
+          <div className="panel-head"><span><b>사업별 예산</b> <span className="muted">{data.budgets.length}줄</span></span>{bigButton('budget')}</div>
           <div className="panel-body">
             {Object.keys(groups).length === 0 ? (
               <p className="muted" style={{ padding: 16 }}>{period.name}에 등록된 예산이 없습니다. 예산계획서의 사업·지출 항목별 금액을 오른쪽에서 추가하세요.</p>
-            ) : (
-              <table style={{ width: '100%' }}>
-                <thead>
-                  <tr><th>사업 · 항목</th><th className="num">예산액</th><th className="num">지출</th><th className="num">남은 금액</th><th>집행률</th><th></th></tr>
-                </thead>
-                {Object.entries(groups).map(([eventName, list]) => {
-                  const b = sum(list, 'amount'), sp = sum(list, 'spent')
-                  const top = topEvent(eventName, parents)
-                  const t = tops[top]
-                  return (
-                    <tbody key={eventName}>
-                      {/* 사업 줄: 소계. 묶인 하위 사업이면 '↳'와 묶음 이름 */}
-                      <tr className="event-row">
-                        <td>
-                          {top !== eventName && <span className="muted">↳ </span>}
-                          {eventName}
-                          {top !== eventName && <span className="muted" style={{ fontWeight: 400 }}> · {top} 묶음</span>}
-                        </td>
-                        <td className="num">{b.toLocaleString()}</td>
-                        <td className="num">{sp.toLocaleString()}</td>
-                        <td className="num" style={{ color: b - sp < 0 ? 'var(--bad)' : 'inherit' }}>{(b - sp).toLocaleString()}</td>
-                        <td><RateBar rate={b > 0 ? Math.round((sp / b) * 100) : null} over={sp > b} /></td>
-                        <td />
-                      </tr>
-                      {list.map((x) => (
-                        <BudgetRow key={x.id + ':' + x.amount} budget={x} onChanged={setData} setError={setError} editable={editable} />
-                      ))}
-                      {/* 묶음의 마지막 사업 뒤에 묶음 합계 (사업이 2개 이상일 때만) */}
-                      {t.count >= 2 && t.last === eventName && (
-                        <tr style={{ fontWeight: 700, borderTop: '2px solid var(--line-strong)' }}>
-                          <td>{top} 묶음 합계</td>
-                          <td className="num">{t.amount.toLocaleString()}</td>
-                          <td className="num">{t.spent.toLocaleString()}</td>
-                          <td className="num" style={{ color: t.amount - t.spent < 0 ? 'var(--bad)' : 'inherit' }}>{(t.amount - t.spent).toLocaleString()}</td>
-                          <td><RateBar rate={t.amount > 0 ? Math.round((t.spent / t.amount) * 100) : null} over={t.spent > t.amount} /></td>
-                          <td />
-                        </tr>
-                      )}
-                    </tbody>
-                  )
-                })}
-              </table>
-            )}
+            ) : budgetTable}
           </div>
         </section>
         </div>
@@ -455,7 +481,7 @@ function BudgetPage() {
             </form>
           ) : (
             <section className="panel" style={{ height: 480 }}>{/* 높이 고정: 항목이 많아도 칸 안에서 스크롤 */}
-              <div className="panel-head"><b>살펴볼 것</b></div>
+              <div className="panel-head"><b>살펴볼 것</b>{bigButton('look')}</div>
               <div className="panel-body" style={{ overflow: 'hidden' }}>
             {lookBox(true)}
               </div>
@@ -469,12 +495,12 @@ function BudgetPage() {
       {/* 2줄 (높이 고정): 왼쪽 월별 지출(표 내용 폭만큼) | 오른쪽 살펴볼 것(남는 폭 전부) */}
       <div className="budget-row" style={{ height: 280, marginTop: 20, gridTemplateColumns: editable ? 'fit-content(70%) minmax(300px, 1fr)' : 'minmax(0, 1fr)' }}>
         <section className="panel">
-          <div className="panel-head"><b>월별 지출</b><span className="muted">사업 x 월</span></div>
+          <div className="panel-head"><span><b>월별 지출</b> <span className="muted">{monthlySub}</span></span>{bigButton('monthly')}</div>
           <div className="panel-body"><MonthlyTable monthly={data.monthly} wide={!editable} /></div>
         </section>
         {editable ? (
           <section className="panel">
-            <div className="panel-head"><b>살펴볼 것</b></div>
+            <div className="panel-head"><b>살펴볼 것</b>{bigButton('look')}</div>
             <div className="panel-body" style={{ overflow: 'hidden' }}>
             {lookBox(false)}
             </div>
@@ -482,6 +508,9 @@ function BudgetPage() {
         ) : null}
       </div>
 
+      {bigView === 'budget' && <BigView title="사업별 예산" sub={`${period.name} · ${data.budgets.length}줄`} onClose={() => setBigView(null)}>{budgetTable}</BigView>}
+      {bigView === 'monthly' && <BigView title="월별 지출" sub={`${period.name} · ${monthlySub}`} onClose={() => setBigView(null)}><MonthlyTable monthly={data.monthly} wide /></BigView>}
+      {bigView === 'look' && <BigView title="살펴볼 것" sub={period.name} onClose={() => setBigView(null)}>{lookBox(false)}</BigView>}
     </div>
   )
 }
