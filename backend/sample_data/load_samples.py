@@ -24,7 +24,7 @@ from fastapi import HTTPException  # noqa: E402
 
 from bank_import import parse_transactions  # noqa: E402
 from main import DEFAULT_ORG_ID, ExpenseIn, create_expense, ensure_term, get_conn, now_text, save_bank_transactions  # noqa: E402
-from main import create_term_with_periods, recheck_expense  # noqa: E402
+from main import DecisionIn, create_term_with_periods, decide_expense, recheck_expense  # noqa: E402
 
 DEMO_YEAR = 2026  # 시연용 가상 데이터의 연도
 
@@ -74,6 +74,7 @@ if "--no-ai" in sys.argv:
     sys.exit()
 
 samples = json.loads((SAMPLE_DIR / "expenses.json").read_text(encoding="utf-8"))
+CONFIRM_BEFORE = "2026-10-01"
 for item in samples:
     # 이미 들어간 샘플(날짜·금액·내용이 같음)은 건너뛴다. 다시 실행해도 AI 호출(토큰)이 낭비되지 않게.
     with get_conn() as conn:
@@ -92,5 +93,8 @@ for item in samples:
     try:
         saved = create_expense(ExpenseIn(**item))
         print(f"[지출 {saved['ai_status']}] {item['description']} - {saved['ai_clause']}")
+        # 쓰던 장부처럼 보이게: 10월 이전 지출 중 AI가 '문제 없음'으로 본 것은 확정해 둔다 (점검 결과는 실제 AI 결과 그대로)
+        if saved["ai_status"] == "적합" and item["date"] < CONFIRM_BEFORE:
+            decide_expense(saved["id"], DecisionIn(final_status="확정"))
     except HTTPException as e:
         print(f"[지출 실패] {item['description']} - {e.detail}")
