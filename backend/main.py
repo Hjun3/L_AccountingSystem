@@ -978,13 +978,16 @@ BACKUP_README = """짝장부 백업 파일
 
 @app.get("/backup.zip")
 def download_backup():
-    """백업 내려받기 (관리자만): DB와 증빙 파일을 zip 하나로. 서버가 켜져 있어도 DB를 안전하게 복사한다."""
+    """백업 내려받기 (관리자만): DB와 증빙 파일을 zip 하나로. 서버가 켜져 있어도 DB를 안전하게 복사한다.
+    파일 이름과 안내 파일에 백업한 시각을 적는다 (예: jjakjangbu_backup_2026-11-12_14-30.zip).
+    파일 이름은 영어·숫자만 쓴다 (한글 이름은 브라우저·프로그램에 따라 깨질 수 있음)."""
     import sqlite3
     import tempfile
     import zipfile
     from io import BytesIO
 
     import db
+    now = datetime.now()
     with tempfile.TemporaryDirectory() as tmp:
         copy_path = Path(tmp) / "expenses.db"
         # SQLite의 백업 기능: 쓰는 도중이어도 깨지지 않은 복사본을 만든다
@@ -993,12 +996,12 @@ def download_backup():
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
             z.write(copy_path, "expenses.db")
-            z.writestr("백업_안내.txt", BACKUP_README)
+            z.writestr("backup_readme.txt", f"백업한 시각: {now.strftime('%Y년 %m월 %d일 %H시 %M분')}\n\n" + BACKUP_README)
             if UPLOAD_DIR.exists():
                 for f in UPLOAD_DIR.iterdir():
                     if f.is_file():
                         z.write(f, f"uploads/{f.name}")
-    filename = f"jjakjangbu_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+    filename = f"jjakjangbu_backup_{now.strftime('%Y-%m-%d_%H-%M')}.zip"  # 예: 2026-11-12_14-30 = 14시 30분
     return Response(buffer.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
