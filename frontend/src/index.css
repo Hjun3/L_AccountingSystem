@@ -290,6 +290,8 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 /* 크게 보기 창: 넓게, 내용이 화면보다 길면 창 안에서 스크롤 */
 .popup.big-view { max-width: 1100px; max-height: 88vh; padding: 20px 24px; display: flex; flex-direction: column; overflow: hidden; }
 .big-view-body { flex: 1; min-height: 0; overflow: auto; margin-top: 12px; }
+.popup.big-view.fit { width: auto; min-width: 480px; }
+.popup.big-view.fit .compact-table td.num, .popup.big-view.fit .compact-table th.num { min-width: 96px; }
 .big-view-body thead th { position: sticky; top: 0; z-index: 2; }
 .popup.big-view .look-cols { height: auto; }
 .popup.big-view .look-list { overflow: visible; }

@@ -122,7 +122,8 @@ function MonthlyTable({ monthly, wide = false }) {
 }
 
 // 크게 보기 창: 상자 안에서 스크롤하던 내용을 큰 창에 펼쳐 보여 준다. [닫기], 창 바깥 클릭, Esc로 닫힘
-function BigView({ title, sub, onClose, children }) {
+// fit: 창 폭을 내용 폭에 맞춘다 (월별 지출처럼 달이 적으면 좌우로 휑하게 늘어나지 않게)
+function BigView({ title, sub, onClose, children, fit = false }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -130,7 +131,7 @@ function BigView({ title, sub, onClose, children }) {
   }, [onClose])
   return (
     <div className="popup-bg" onClick={onClose}>
-      <div className="popup big-view" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div className={fit ? 'popup big-view fit' : 'popup big-view'} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="panel-head" style={{ padding: '0 0 12px' }}>
           <span><b style={{ fontSize: 16 }}>{title}</b> {sub && <span className="muted">{sub}</span>}</span>
           <button onClick={onClose}>닫기</button>
@@ -510,7 +511,7 @@ function BudgetPage() {
       </div>
 
       {bigView === 'budget' && <BigView title="사업별 예산" sub={`${period.name} · ${data.budgets.length}줄`} onClose={() => setBigView(null)}>{budgetTable}</BigView>}
-      {bigView === 'monthly' && <BigView title="월별 지출" sub={`${period.name} · ${monthlySub}`} onClose={() => setBigView(null)}><MonthlyTable monthly={data.monthly} wide /></BigView>}
+      {bigView === 'monthly' && <BigView title="월별 지출" sub={`${period.name} · ${monthlySub}`} onClose={() => setBigView(null)} fit><MonthlyTable monthly={data.monthly} /></BigView>}
       {bigView === 'look' && <BigView title="살펴볼 것" sub={period.name} onClose={() => setBigView(null)}>{lookBox(false)}</BigView>}
     </div>
   )
