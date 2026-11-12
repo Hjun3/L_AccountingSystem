@@ -756,10 +756,40 @@ async def import_bank_excel(file: UploadFile = File(...), password: str = Form("
         raise HTTPException(status_code=400, detail=str(e))
 
     saved = save_bank_transactions(transactions)
+    # 방금 올린 파일 기간의 거래를 저장된 기준으로 다시 맞춰 본다 (전에 올린 거래와 합쳐서)
+    dates = [t["date"] for t in transactions]
+    result = reconcile_stored(min(dates), max(dates)) if dates else reconcile([])
+    result["saved_count"] = saved
+    return result
 
-    withdrawals = [t for t in transactions if t["direction"] == "출금"]
+
+@app.get("/bank/reconcile")
+def bank_reconcile(term_id: int | None = None):
+    """저장된 통장 출금으로 지출과 다시 맞춰 본다 (거래내역 화면에 들어올 때). 임기를 주면 그 임기 날짜 안만."""
+    with get_conn() as conn:
+        start, end = term_range(conn, term_id) if term_id is not None else ("0000-00-00", "9999-12-31")
+    return reconcile_stored(start, end)
+
+
+def reconcile_stored(start, end):
+    """저장된 출금 중 start~end 날짜인 것을 지출과 맞춰 보고, 저장된 거래 수·마지막 불러온 시각도 함께 돌려준다."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT datetime, amount, content FROM bank_transactions WHERE direction = '출금' AND substr(datetime, 1, 10) BETWEEN ? AND ? "
+            "ORDER BY datetime, id", (start, end)).fetchall()
+        info = conn.execute(
+            "SELECT COUNT(*) AS n, MAX(imported_at) AS last FROM bank_transactions WHERE substr(datetime, 1, 10) BETWEEN ? AND ?",
+            (start, end)).fetchone()
+    withdrawals = [{"datetime": r["datetime"], "date": r["datetime"][:10], "amount": r["amount"], "content": r["content"], "direction": "출금"} for r in rows]
+    result = reconcile(withdrawals)
+    result["stored_count"], result["last_imported_at"] = info["n"], info["last"]
+    return result
+
+
+def reconcile(withdrawals):
+    """출금 목록을 등록된 지출과 날짜·금액으로 맞춰 본다. → {transactions: 출금(+짝지은 지출 번호), unmatched_expenses: 출금이 없는 지출}"""
     if not withdrawals:
-        return {"transactions": [], "unmatched_expenses": [], "saved_count": saved}
+        return {"transactions": [], "unmatched_expenses": [], "saved_count": 0}
 
     first_date = min(w["date"] for w in withdrawals)
     last_date = max(w["date"] for w in withdrawals)
@@ -782,7 +812,7 @@ async def import_bank_excel(file: UploadFile = File(...), password: str = Form("
 
     # 지출로는 등록됐는데 같은 기간 통장에 출금이 없는 건 (금액·날짜를 잘못 입력했을 수 있음)
     unmatched_expenses = [exp for exp in expenses if exp["id"] not in used]
-    return {"transactions": withdrawals, "unmatched_expenses": unmatched_expenses, "saved_count": saved}
+    return {"transactions": withdrawals, "unmatched_expenses": unmatched_expenses, "saved_count": 0}
 
 
 class BudgetIn(BaseModel):

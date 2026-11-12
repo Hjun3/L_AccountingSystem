@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, canEdit, useUser, STATUS_COLORS } from '../common'
+import { api, canEdit, useUser, STATUS_COLORS, termQuery, useTerm } from '../common'
 import Pager, { paginate } from '../components/Pager'
 import AiUsageWarning from '../components/AiUsageWarning'
 import SuggestInput from '../components/SuggestInput'
@@ -48,6 +48,15 @@ function UnregisteredRow({ tx, onRegistered }) {
 function BankImportPage() {
   const user = useUser()
   const [result, setResult] = useState(null)
+  const [justUploaded, setJustUploaded] = useState(false) // 방금 파일을 올렸는지 (아니면 저장된 거래로 보여 주는 중)
+  const { termId, terms } = useTerm() // 왼쪽 메뉴에서 고른 임기
+  const termName = terms.find((t) => t.id === termId)?.name || '전체 임기'
+
+  // 화면에 들어오면(임기를 바꾸면) 저장된 통장 거래로 다시 맞춰 본 결과를 보여 준다
+  useEffect(() => {
+    setJustUploaded(false)
+    api('/bank/reconcile' + termQuery(termId)).then(setResult).catch(() => setResult(null))
+  }, [termId])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [file, setFile] = useState(null) // 고른 파일 (비밀번호를 넣고 다시 읽을 때 사용)
@@ -64,6 +73,7 @@ function BankImportPage() {
       body.append('file', target)
       body.append('password', pw)
       setResult(await api('/bank/import', { method: 'POST', body }))
+      setJustUploaded(true)
       setPage(1)
     } catch (e) {
       setResult(null)
@@ -157,7 +167,7 @@ function BankImportPage() {
         </section>
       </div>
 
-      {result && (
+      {result && (justUploaded || result.stored_count > 0) && (
         <>
           {/* 결과 요약 */}
           <div className="card tnum" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginTop: 20 }}>
@@ -172,7 +182,11 @@ function BankImportPage() {
                 <div style={{ fontSize: 22, fontWeight: 700, color: it.color }}>{it.value}건</div>
               </div>
             ))}
-            <div className="muted" style={{ gridColumn: '1 / -1' }}>새로 저장된 거래 {result.saved_count}건 (이미 저장된 거래는 건너뜀)</div>
+            <div className="muted" style={{ gridColumn: '1 / -1' }}>
+              {justUploaded
+                ? `방금 올린 파일에서 새로 저장된 거래 ${result.saved_count}건 (이미 저장된 거래는 건너뜀) · 전에 올린 거래와 합쳐서 맞춰 봤어요`
+                : `저장된 통장 거래로 맞춰 본 결과예요 (${termName} · 거래 ${result.stored_count}건 · 마지막 불러오기 ${(result.last_imported_at || '').replace('T', ' ').slice(0, 16)})`}
+            </div>
           </div>
 
           <div className="section-title">
