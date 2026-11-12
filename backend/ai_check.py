@@ -121,7 +121,7 @@ RECEIPT_PROMPT = """너는 영수증 사진에서 지출 정보를 읽어 내는
 event_name과 category는 사용자 메시지에 주어진 목록 안에서만 하나씩 고른다. 품목과 날짜로 판단이 어려우면 빈 문자열로 둔다."""
 
 # 지출 항목(비목) 목록: 영수증 읽기에서 추천할 때 쓴다 (화면 frontend/src/common.js의 CATEGORIES와 같게 유지)
-CATEGORIES = ["수용비", "급량비", "상품비", "대여비", "환급비", "보조비", "활동비", "교통비", "기타"]
+CATEGORIES = ["수용비", "급량비", "상품비", "대여비", "환급비", "보조비", "교통비", "기타"]
 
 # OpenAI가 읽을 수 있는 이미지 형식
 RECEIPT_MIME_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}

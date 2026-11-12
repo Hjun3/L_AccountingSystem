@@ -30,7 +30,7 @@ export const finalLabel = (status) => FINAL_LABELS[status] || status
 export const STATUS_BG = { 적합: '#e6f4ea', 주의: '#fff3e0', 위반: '#fdecea', 미점검: '#f2f4f6' }
 
 // 비목 목록 (감사자료에서 확인한 학생회 비목). 입력칸 자동완성에 쓴다.
-export const CATEGORIES = ['수용비', '급량비', '상품비', '대여비', '환급비', '보조비', '활동비', '교통비', '기타']
+export const CATEGORIES = ['수용비', '급량비', '상품비', '대여비', '환급비', '보조비', '교통비', '기타']
 
 // 캘린더 일정 종류별 글자색
 export const KIND_COLORS = { 사업: 'steelblue', 감사: 'purple', 기타: 'gray' }

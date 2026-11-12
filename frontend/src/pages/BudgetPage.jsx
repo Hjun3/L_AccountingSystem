@@ -383,7 +383,7 @@ function BudgetPage() {
   const monthlySub = `사업 ${new Set(data.monthly.map((m) => m.event_name)).size}개 · 합계 ${monthlyTotal.toLocaleString()}원`
   const bigButton = (key) => <button onClick={() => setBigView(key)} style={{ height: 26, fontSize: 12, padding: '0 10px' }}>크게 보기</button>
 
-  // 살펴볼 것: 세 칸(예산 넘김 | 아직 안 쓴 예산 | 예산에 없는 지출). 칸마다 이름 옆에 금액, 많으면 칸 안에서 스크롤
+  // 살펴볼 것: 세 칸(예산 초과 | 아직 안 쓴 예산 | 예산에 없는 지출). 칸마다 이름 옆에 금액, 많으면 칸 안에서 스크롤
   const lookColumn = (title, color, rows, empty) => (
     <div className="look-col">
       <div style={{ fontWeight: 600, color, marginBottom: 6 }}>{title} {rows.length}</div>
@@ -400,7 +400,7 @@ function BudgetPage() {
   // stacked: 좁은 칸(열람 계정의 오른쪽 칸)에서는 세 칸을 위아래로 쌓는다
   const lookBox = (stacked) => (
     <div className={stacked ? 'look-cols stacked' : 'look-cols'}>
-      {lookColumn('예산 넘김', 'var(--bad)', overLines.map((x) => ({ key: x.id, name: x.event_name, category: x.category, value: `+${(-x.remaining).toLocaleString()}`, color: 'var(--bad)' })), '없어요')}
+      {lookColumn('예산 초과', 'var(--bad)', overLines.map((x) => ({ key: x.id, name: x.event_name, category: x.category, value: `+${(-x.remaining).toLocaleString()}`, color: 'var(--bad)' })), '없어요')}
       {lookColumn('아직 안 쓴 예산', 'var(--text)', unusedLines.map((x) => ({ key: x.id, name: x.event_name, category: x.category, value: x.amount.toLocaleString(), color: 'var(--muted)' })), '없어요')}
       {lookColumn('예산에 없는 지출', data.unbudgeted.length ? 'var(--warn)' : 'var(--text)', data.unbudgeted.map((u) => ({ key: u.event_name + u.category, name: u.event_name, category: u.category, value: u.spent.toLocaleString(), color: 'var(--warn)' })), '없어요')}
     </div>

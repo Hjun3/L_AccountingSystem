@@ -22,7 +22,7 @@ const head = { ...cell, background: '#eee', width: 110, fontWeight: 'bold' }
 
 // 사필영수증의 비목 칸. 지출의 비목을 보고 미리 체크한다.
 const SAPIL_KINDS = ['상품', '환급', '활동비', '지원금', '참가비', '이월']
-const CATEGORY_TO_KIND = { 상품비: '상품', 환급비: '환급', 활동비: '활동비', 보조비: '지원금' }
+const CATEGORY_TO_KIND = { 상품비: '상품', 환급비: '환급', 보조비: '지원금' }
 
 function SapilReceipt({ expense }) {
   const [f, setF] = useState({
