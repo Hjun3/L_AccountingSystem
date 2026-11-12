@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, canEdit, useUser, CATEGORIES } from '../common'
+import AiUsageWarning from '../components/AiUsageWarning'
 import SuggestInput from '../components/SuggestInput'
 
 // 폼의 처음 상태
@@ -134,6 +135,7 @@ function ExpenseNewPage() {
   return (
     <div>
       <h2>지출 등록</h2>
+      <AiUsageWarning />
       <div className="new-expense">
         {/* 왼쪽: 입력 */}
         <form onSubmit={handleSubmit} className="card" style={{ display: 'grid', gap: 16, marginBottom: 0, padding: 24, alignContent: 'start', alignSelf: 'start' }}>

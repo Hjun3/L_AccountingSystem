@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 import { api, canEdit, isAdmin, TermContext, UserContext } from './common'
 import AccountPage from './pages/AccountPage'
+import UsagePage from './pages/UsagePage'
 import BankImportPage from './pages/BankImportPage'
 import BudgetPage from './pages/BudgetPage'
 import CalendarPage from './pages/CalendarPage'
@@ -47,6 +48,7 @@ function Sidebar({ user, onLogout, terms, termId, setTermId }) {
             <div className="group">관리</div>
             <NavLink to="/logs">기록</NavLink>
             <NavLink to="/users">사용자 관리</NavLink>
+            <NavLink to="/usage">사용량·백업</NavLink>
           </>
         )}
       </nav>
@@ -174,6 +176,7 @@ function App() {
             <Route path="/regulation" element={<RegulationPage />} />
             <Route path="/logs" element={<LogsPage />} />
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/usage" element={<UsagePage />} />
             <Route path="/account" element={<AccountPage onUserChanged={loadMe} />} />
           </Routes>
           </main>

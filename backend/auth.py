@@ -143,8 +143,8 @@ def device_name(user_agent: str | None) -> str:
 
 def required_role(method: str, path: str) -> set[str] | None:
     """이 요청에 필요한 역할. None이면 로그인만 되어 있으면 됨."""
-    if path.startswith("/users") or path.startswith("/logs"):
-        return {"admin"}
+    if path.startswith("/users") or path.startswith("/logs") or path.startswith("/backup"):
+        return {"admin"}  # 사용자 관리, 기록, 백업 내려받기는 관리자만
     if path.startswith("/auth/"):
         return None
     if path.startswith("/terms") and method != "GET":

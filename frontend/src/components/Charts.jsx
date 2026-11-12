@@ -12,16 +12,17 @@ export function shortWon(n) {
 }
 
 // 가로 막대 목록: rows = [{ name, value, sub? }]
-export function BarList({ rows, emptyText = '데이터가 없습니다.' }) {
+export function BarList({ rows, emptyText = '데이터가 없습니다.', unit }) {
+  const fmt = (v) => (unit ? `${v.toLocaleString()}${unit}` : won(v)) // unit을 주면 '3회'처럼
   if (rows.length === 0) return <p className="muted">{emptyText}</p>
   const max = Math.max(...rows.map((r) => r.value), 1)
   return (
     <div style={{ display: 'grid', gap: 10 }}>
       {rows.map((r) => (
-        <div key={r.name} title={`${r.name}: ${won(r.value)}`}>
+        <div key={r.name} title={`${r.name}: ${fmt(r.value)}`}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
             <span>{r.name}{r.sub && <span className="muted"> · {r.sub}</span>}</span>
-            <span className="tnum">{won(r.value)}</span>
+            <span className="tnum">{fmt(r.value)}</span>
           </div>
           <div style={{ height: 8, background: 'var(--line)', borderRadius: 4 }}>
             <div style={{ width: `${(r.value / max) * 100}%`, height: '100%', background: 'var(--primary)', borderRadius: 4, minWidth: r.value ? 4 : 0 }} />

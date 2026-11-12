@@ -33,10 +33,24 @@ SYSTEM_PROMPT = """너는 학생회 총무와 함께 일하는 회계 담당 동
 
 
 def log_usage(kind: str, response) -> None:
-    """OpenAI 호출 1번에 쓴 토큰 수를 서버 화면(터미널)에 출력한다. 비용 확인용."""
+    """OpenAI 호출 1번에 쓴 토큰 수를 서버 화면(터미널)에 출력하고, DB(ai_usage)에도 남긴다. 비용 확인용.
+    'AI 사용량' 화면에서 이번 달 사용 횟수·토큰을 보고, 기준 횟수를 넘으면 경고를 띄운다."""
     u = response.usage
+    if u is None:
+        return
     cached = getattr(u.prompt_tokens_details, "cached_tokens", 0) if u.prompt_tokens_details else 0
     print(f"[토큰] {kind}: 입력 {u.prompt_tokens} (캐시 {cached}) + 출력 {u.completion_tokens} = {u.total_tokens}")
+    from auth import current_user  # 누가 불렀는지 (스크립트에서 부르면 '시스템')
+    from db import get_conn, now_text
+    user = current_user.get()
+    try:
+        with get_conn() as conn:
+            conn.execute(
+                "INSERT INTO ai_usage (created_at, kind, prompt_tokens, completion_tokens, total_tokens, username) VALUES (?, ?, ?, ?, ?, ?)",
+                (now_text(), kind, u.prompt_tokens, u.completion_tokens, u.total_tokens, user["username"] if user else "시스템"),
+            )
+    except Exception as e:  # 사용량 기록이 실패해도 점검 결과는 그대로 쓴다
+        print(f"[토큰] 사용량 저장 실패: {e}")
 
 
 class AICheckError(Exception):

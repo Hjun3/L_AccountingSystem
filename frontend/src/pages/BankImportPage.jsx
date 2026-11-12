@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, canEdit, useUser, STATUS_COLORS } from '../common'
 import Pager, { paginate } from '../components/Pager'
+import AiUsageWarning from '../components/AiUsageWarning'
 import SuggestInput from '../components/SuggestInput'
 
 // 아직 등록되지 않은 출금 1건: 총무가 사업명과 지출 항목을 채운 뒤 'AI 점검 후 등록'을 누른다
@@ -97,6 +98,7 @@ function BankImportPage() {
   return (
     <div>
       <h2>거래내역 불러오기</h2>
+      <AiUsageWarning />
 
       {/* 위쪽: 왼쪽 파일 올리기, 오른쪽 안내 (아래 결과 표와 폭을 맞춤) */}
       <div className="new-expense" style={{ maxWidth: 'none' }}>

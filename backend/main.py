@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Literal
 
 import json
+import os
 import uuid
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -262,6 +263,20 @@ def init_db():
                 title TEXT NOT NULL,
                 memo TEXT,
                 created_at TEXT NOT NULL
+            )
+            """
+        )
+        # AI 사용 기록: OpenAI를 부를 때마다 한 줄 (종류, 토큰 수, 누가). 'AI 사용량' 화면과 경고용
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ai_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                prompt_tokens INTEGER,
+                completion_tokens INTEGER,
+                total_tokens INTEGER,
+                username TEXT
             )
             """
         )
@@ -945,6 +960,83 @@ def event_parents(conn) -> dict:
     """사업 묶음: {하위 사업명: 상위 사업명}"""
     return {r["event_name"]: r["parent_name"] for r in conn.execute(
         "SELECT event_name, parent_name FROM event_groups WHERE org_id = ?", (DEFAULT_ORG_ID,))}
+
+
+BACKUP_README = """짝장부 백업 파일
+- expenses.db : 모든 데이터 (지출, 예산, 일정, 기록, 계정 등)
+- uploads/    : 첨부한 증빙 파일
+
+되살리는 방법
+1. 백엔드 서버를 끈다.
+2. backend 폴더의 expenses.db 를 이 파일의 expenses.db 로 바꾼다.
+3. backend/uploads 폴더를 이 파일의 uploads 폴더로 바꾼다.
+4. 서버를 다시 켠다.
+
+주의: 계정·거래내역 등 개인정보가 들어 있으니 안전한 곳에 보관하고 GitHub 등에 올리지 마세요.
+"""
+
+
+@app.get("/backup.zip")
+def download_backup():
+    """백업 내려받기 (관리자만): DB와 증빙 파일을 zip 하나로. 서버가 켜져 있어도 DB를 안전하게 복사한다."""
+    import sqlite3
+    import tempfile
+    import zipfile
+    from io import BytesIO
+
+    import db
+    with tempfile.TemporaryDirectory() as tmp:
+        copy_path = Path(tmp) / "expenses.db"
+        # SQLite의 백업 기능: 쓰는 도중이어도 깨지지 않은 복사본을 만든다
+        with sqlite3.connect(db.DB_PATH) as source, sqlite3.connect(copy_path) as target:
+            source.backup(target)
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
+            z.write(copy_path, "expenses.db")
+            z.writestr("백업_안내.txt", BACKUP_README)
+            if UPLOAD_DIR.exists():
+                for f in UPLOAD_DIR.iterdir():
+                    if f.is_file():
+                        z.write(f, f"uploads/{f.name}")
+    filename = f"jjakjangbu_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+    return Response(buffer.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+# 한 달 AI 사용 횟수가 이만큼을 넘으면 화면에 경고를 띄운다 (막지는 않음). backend/.env 의 AI_MONTHLY_WARN 으로 바꿀 수 있다
+AI_MONTHLY_WARN = int(os.getenv("AI_MONTHLY_WARN", "300"))
+
+
+@app.get("/ai-usage")
+def ai_usage(month: str | None = None):
+    """AI 사용량: 고른 달(기본 이번 달)의 횟수·토큰, 종류별·사람별, 날짜별 횟수, 최근 6개월 횟수, 경고 여부"""
+    month = month or datetime.now().strftime("%Y-%m")
+    with get_conn() as conn:
+        rows = [dict(r) for r in conn.execute("SELECT * FROM ai_usage WHERE substr(created_at, 1, 7) = ?", (month,))]
+        months = [dict(r) for r in conn.execute(
+            "SELECT substr(created_at, 1, 7) AS month, COUNT(*) AS count, SUM(total_tokens) AS tokens "
+            "FROM ai_usage GROUP BY month ORDER BY month DESC LIMIT 6")]
+        names = {r["username"]: r["display_name"] for r in conn.execute("SELECT username, display_name FROM users")}
+
+    def group(key):
+        out = {}
+        for r in rows:
+            g = out.setdefault(r[key], {"name": names.get(r[key], r[key]) if key == "username" else r[key], "count": 0, "tokens": 0})
+            g["count"] += 1
+            g["tokens"] += r["total_tokens"] or 0
+        return sorted(out.values(), key=lambda g: -g["count"])
+
+    daily = {}
+    for r in rows:
+        daily[r["created_at"][:10]] = daily.get(r["created_at"][:10], 0) + 1
+    count = len(rows)
+    return {
+        "month": month, "count": count, "tokens": sum(r["total_tokens"] or 0 for r in rows),
+        "warn_at": AI_MONTHLY_WARN, "over": count >= AI_MONTHLY_WARN,
+        "by_kind": group("kind"), "by_user": group("username"),
+        "daily": [{"date": d, "count": c} for d, c in sorted(daily.items())],
+        "months": list(reversed(months)),
+    }
 
 
 @app.get("/event-groups")
