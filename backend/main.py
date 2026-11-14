@@ -16,7 +16,7 @@ from auth import current_user, init_auth_tables
 from db import DATA_DIR, get_conn, now_text
 from report import build_settlement
 from bank_import import BankImportError, parse_transactions
-from ai_check import RECEIPT_MIME_TYPES, REGULATION_PATH, AICheckError, check_expense, read_receipt
+from ai_check import RECEIPT_MIME_TYPES, REGULATION_PATH, AICheckError, check_event, check_expense, read_receipt
 
 UPLOAD_DIR = DATA_DIR / "uploads"  # 첨부파일 저장 폴더 (GitHub에 올리지 않음)
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".webp", ".pdf"}
@@ -1269,3 +1269,74 @@ def audit_check(term_id: int | None = None):
          "manual": "서류는 이메일로 상시 내고, 대면 서류 2부는 수시·정기감사 때 내요. 기한을 지키고, 이메일 제출본과 대면 제출본이 같은지 확인하세요.",
          "examples": ["감사 기간 안에 서류 추가 제출", "이메일(비대면)과 대면 제출 서류 불일치", "통장 거래내역 누락"]},
     ]}
+
+
+# ---------- 사업별 감사 전 AI 점검 ----------
+# 감사 자가 점검 화면에서 사업 하나를 골라 [AI 점검]을 누를 때만 OpenAI를 1번 부른다.
+# 결과는 사업·임기별로 마지막 것 하나만 저장해 두고(비용 절약), 다시 누르면 새로 점검해 바꾼다.
+def _event_checks_table(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS event_checks (
+        org_id INTEGER NOT NULL DEFAULT 1, term_key INTEGER NOT NULL, event_name TEXT NOT NULL,
+        result TEXT NOT NULL, created_at TEXT NOT NULL, actor TEXT,
+        PRIMARY KEY (org_id, term_key, event_name))""")
+
+
+def _term_dates(conn, term_id):
+    return term_range(conn, term_id) if term_id is not None else ("0000-00-00", "9999-12-31")
+
+
+@app.get("/events/check")
+def list_event_checks(term_id: int | None = None):
+    """고른 임기의 사업 이름 목록과, 저장된 사업별 AI 점검 결과"""
+    with get_conn() as conn:
+        _event_checks_table(conn)
+        start, end = _term_dates(conn, term_id)
+        names = [r["event_name"] for r in conn.execute(
+            "SELECT event_name, COUNT(*) AS n FROM expenses WHERE deleted_at IS NULL AND date BETWEEN ? AND ? "
+            "GROUP BY event_name ORDER BY n DESC, event_name", (start, end))]
+        results = {r["event_name"]: {**json.loads(r["result"]), "created_at": r["created_at"], "actor": r["actor"]}
+                   for r in conn.execute("SELECT * FROM event_checks WHERE term_key = ?", (term_id or 0,))}
+    return {"events": names, "results": results}
+
+
+class EventCheckIn(BaseModel):
+    event_name: str
+    term_id: int | None = None
+
+
+@app.post("/events/check")
+def run_event_check(body: EventCheckIn):
+    with get_conn() as conn:
+        _event_checks_table(conn)
+        start, end = _term_dates(conn, body.term_id)
+        parents = event_parents(conn)
+        names = [body.event_name] + sorted(c for c, p in parents.items() if p == body.event_name)
+        marks = ",".join("?" * len(names))
+        rows = conn.execute(
+            f"SELECT e.*, (SELECT COUNT(*) FROM attachments a WHERE a.expense_id = e.id) AS files FROM expenses e "
+            f"WHERE deleted_at IS NULL AND event_name IN ({marks}) AND date BETWEEN ? AND ? ORDER BY date", (*names, start, end)).fetchall()
+        if not rows:
+            raise HTTPException(status_code=404, detail="이 임기에 이 사업의 지출이 없습니다.")
+        budgets = conn.execute(
+            f"SELECT b.event_name, b.category, SUM(b.amount) AS amount FROM budgets b JOIN periods p ON p.id = b.period_id "
+            f"WHERE b.event_name IN ({marks}) AND p.start_date <= ? AND p.end_date >= ? GROUP BY b.event_name, b.category",
+            (*names, end, start)).fetchall()
+
+    lines = [f"사업명: {body.event_name}" + (f" (함께 묶인 사업: {', '.join(names[1:])})" if len(names) > 1 else "")]
+    lines.append("[예산]")
+    lines += [f"- {b['event_name']} · {b['category']}: {b['amount']}원" for b in budgets] or ["- 예산 없음"]
+    lines.append("[지출]")
+    for r in rows:
+        todos = [t["text"] for t in json.loads(r["ai_todos"] or "[]") if not t.get("done")]
+        lines.append(
+            f"- #{r['id']} {r['date']} {r['event_name']} · {r['category']} · {r['amount']}원 · {r['description']}"
+            f" | 증빙 {'있음' if r['has_receipt'] else '없음'}, 첨부파일 {r['files']}개, AI 점검 {r['ai_status']}, 총무 결정 {r['final_status']}"
+            + (f", 메모: {r['memo']}" if r["memo"] else "") + (f", 남은 챙길 것: {'; '.join(todos)}" if todos else ""))
+    try:
+        result = check_event("\n".join(lines), {r["id"] for r in rows})
+    except AICheckError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    with get_conn() as conn:
+        conn.execute("INSERT OR REPLACE INTO event_checks (org_id, term_key, event_name, result, created_at, actor) VALUES (1, ?, ?, ?, ?, ?)",
+                     (body.term_id or 0, body.event_name, json.dumps(result, ensure_ascii=False), now_text(), actor_name()))
+    return {**result, "created_at": now_text(), "actor": actor_name()}

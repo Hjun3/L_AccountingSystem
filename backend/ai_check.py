@@ -170,3 +170,53 @@ def read_receipt(image_bytes: bytes, ext: str, event_names: list[str] | None = N
         "event_name": data.get("event_name") if data.get("event_name") in event_names else "",
         "category": data.get("category") if data.get("category") in CATEGORIES else "",
     }
+
+
+# ---------- 사업별 감사 전 점검 (버튼을 눌렀을 때만 1번 호출) ----------
+EVENT_AREAS = ["공약 및 사업", "예·결산보고서", "영수증", "도안", "회계장부", "감사 태도"]
+
+EVENT_PROMPT = """너는 학생회 총무와 함께 일하는 회계 담당 동료다. 곧 대의원회 감사가 있다.
+아래 [회계 규정]과 그 안의 실제 감점 사례를 근거로, 총무가 보낸 '사업 하나'의 지출·예산 기록을 보고
+감사에서 감점될 수 있어 미리 챙겨야 할 것을 감사 채점표 분야별로 정리해 줘라.
+
+작성 방법:
+- summary: 이 사업의 감사 준비 상태를 동료 말투("~해요")로 두 문장 이내.
+- items: 챙길 것 최대 6개. 기록에 근거가 있는 것을 먼저 쓰고, 이 사업 종류(예: MT, 야식마차, 상품 증정)에서 자주 감점되는 서류를 다음으로 쓴다.
+  - area: 공약 및 사업 | 예·결산보고서 | 영수증 | 도안 | 회계장부 | 감사 태도 중 하나
+  - text: 총무가 바로 할 수 있는 일 한 문장 (예: "야식마차 수령자 자필명단 준비하기")
+  - clause: 근거 조항 1개 (예: 감사지침 제2항 1). 없으면 ""
+  - expense_ids: 관련 지출 번호 목록 (없으면 [])
+- 기록에 없는 사실을 지어내지 마라. 확인이 필요하면 "확인하기"로 쓴다.
+
+반드시 아래 JSON 형식만 출력하라.
+{"summary": "...", "items": [{"area": "...", "text": "...", "clause": "...", "expense_ids": [1, 2]}]}
+
+[회계 규정]
+"""
+
+
+def check_event(event_text: str, expense_ids: set) -> dict:
+    """사업 하나의 기록(event_text)을 보고 감사 전에 챙길 것을 받는다. expense_ids: 실제 있는 지출 번호 (그 밖의 번호는 버림)"""
+    if not os.getenv("OPENAI_API_KEY"):
+        raise AICheckError("OPENAI_API_KEY가 없습니다. backend/.env 파일을 확인하세요.")
+    regulation = REGULATION_PATH.read_text(encoding="utf-8")
+    try:
+        response = OpenAI().chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "system", "content": EVENT_PROMPT + regulation}, {"role": "user", "content": event_text}],
+            response_format={"type": "json_object"},
+        )
+    except Exception as e:
+        raise AICheckError(f"OpenAI 호출 실패: {e}")
+    log_usage("사업 점검", response)
+    try:
+        data = json.loads(response.choices[0].message.content)
+        items = []
+        for it in data.get("items", [])[:6]:
+            area = it.get("area") if it.get("area") in EVENT_AREAS else "기타"
+            ids = [i for i in it.get("expense_ids", []) if isinstance(i, int) and i in expense_ids]
+            if str(it.get("text", "")).strip():
+                items.append({"area": area, "text": str(it["text"]).strip(), "clause": str(it.get("clause", "")).strip(), "expense_ids": ids})
+        return {"summary": str(data.get("summary", "")).strip(), "items": items}
+    except (ValueError, AttributeError, TypeError) as e:
+        raise AICheckError(f"AI 응답을 읽지 못했습니다: {e}")
