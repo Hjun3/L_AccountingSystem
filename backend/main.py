@@ -1183,3 +1183,78 @@ def bank_summary(term_id: int | None = None):
         "as_of": latest["datetime"] if latest else None,
         "months": [dict(m) for m in months],
     }
+
+
+# ---------- 감사 자가 점검 ----------
+# 감사시행세칙 제26조 채점표 항목마다, 앱에 있는 데이터로 확인할 수 있는 '감점될 수 있는 것'을 모은다.
+# 점수를 예상하지는 않는다 (실제 채점은 대의원회가 한다). AI 호출 없음.
+ACTIVITY_LIMIT = 300000  # 과 학생회 활동비 한 학기 한도 (감사지침 제2항 3)
+GOODS_CATEGORIES = ("수용비", "상품비")  # 물품을 사서 도안(사진 증빙)이 필요한 비목
+
+
+@app.get("/audit")
+def audit_check(term_id: int | None = None):
+    with get_conn() as conn:
+        if term_id is not None:
+            start, end = term_range(conn, term_id)
+            periods = conn.execute("SELECT id FROM periods WHERE term_id = ? ORDER BY sort_order", (term_id,)).fetchall()
+        else:
+            start, end = "0000-00-00", "9999-12-31"
+            periods = conn.execute("SELECT id FROM periods ORDER BY start_date").fetchall()
+        rng = "deleted_at IS NULL AND date BETWEEN ? AND ?"
+
+        def expense_rows(where, params=()):
+            rows = conn.execute(
+                f"SELECT id, date, amount, event_name, category, description FROM expenses WHERE {rng} AND {where} ORDER BY date",
+                (start, end, *params)).fetchall()
+            return [{"id": r["id"], "text": f"{r['date']} · {r['event_name']} · {r['category']} · {r['amount']:,}원"} for r in rows]
+
+        no_receipt = expense_rows("has_receipt = 0")
+        pending = expense_rows("ai_status IN ('주의', '위반', '미점검') AND final_status = '대기'")
+        no_photo = expense_rows(
+            f"category IN ({','.join('?' * len(GOODS_CATEGORIES))}) AND id NOT IN (SELECT expense_id FROM attachments)",
+            GOODS_CATEGORIES)
+
+        over, unbudgeted, activity = [], [], []
+        for p in periods:
+            data = budget_overview(conn, p["id"])
+            name = data["period"]["name"]
+            over += [{"text": f"{name} · {b['event_name']} · {b['category']} · {-b['remaining']:,}원 초과"} for b in data["budgets"] if b["remaining"] < 0]
+            unbudgeted += [{"text": f"{name} · {u['event_name']} · {u['category']} · {u['spent']:,}원"} for u in data["unbudgeted"]]
+            used = conn.execute(
+                "SELECT COALESCE(SUM(amount), 0) AS t FROM expenses WHERE deleted_at IS NULL AND category = '활동비' AND date BETWEEN ? AND ?",
+                (data["period"]["start_date"], data["period"]["end_date"])).fetchone()["t"]
+            if used > ACTIVITY_LIMIT:
+                activity.append({"text": f"{name} · 활동비 {used:,}원 (한도 {ACTIVITY_LIMIT:,}원)"})
+
+    bank = reconcile_stored(start, end)
+    bank_loaded = bank["stored_count"] > 0
+    unregistered = [{"text": f"{t['date']} · {t['content']} · {t['amount']:,}원"} for t in bank["transactions"] if not t["matched_expense_id"]]
+    not_in_bank = [{"id": e["id"], "text": f"{e['date']} · {e['event_name']} · {e['amount']:,}원"} for e in bank["unmatched_expenses"]]
+
+    def check(label, rows, link=None, hint=""):
+        return {"label": label, "count": len(rows), "rows": rows[:5], "link": link, "hint": hint}
+
+    return {"items": [
+        {"name": "공약 및 사업", "points": 10, "checks": [],
+         "manual": "공약 사업을 모두 했는지, 사업계획서를 예산 집행 전에 냈는지는 앱에서 알 수 없어요. 직접 확인해 주세요."},
+        {"name": "예·결산보고서", "points": 25, "checks": [
+            check("예산을 넘긴 사업·항목", over, "/budget", "예산 초과는 감사에서 '주의' 이상이에요. 예산변경신청서를 냈는지 확인하세요."),
+            check("예산에 없는 사업·항목으로 쓴 지출", unbudgeted, "/budget", "예산계획서에 없는 지출이에요. 사업명·항목 오타일 수도 있어요."),
+            check("활동비 학기 한도 초과", activity, "/budget", "과 학생회 활동비는 한 학기 30만원 이하예요 (감사지침 제2항)."),
+        ]},
+        {"name": "영수증", "points": 30, "checks": [
+            check("증빙 없는 지출", no_receipt, "/expenses?filter=증빙 없음", "영수증·사필영수증 등 증빙이 없는 지출이에요 (감사지침 제3·4항)."),
+            check("확인·조치 필요인데 아직 확정 안 한 지출", pending, "/expenses", "AI가 챙길 것을 알려 준 지출이에요. 확인하고 메모를 남겨 확정하세요."),
+        ]},
+        {"name": "도안", "points": 25, "checks": [
+            check("사진 증빙이 하나도 없는 물품 지출 (수용비·상품비)", no_photo, None, "물품 구입은 24시간 이내 도안 촬영이 필요해요 (감사지침 제5항). 앱에 사진이 없을 뿐 따로 챙겼다면 괜찮아요."),
+        ]},
+        {"name": "회계장부", "points": 5, "checks": [
+            check("통장에는 있는데 지출로 등록 안 된 출금", unregistered, "/expenses/import", "회계장부는 통장 사본 기준으로 검토해요."),
+            check("지출로는 있는데 통장에 출금이 없는 건", not_in_bank, "/expenses/import", "날짜·금액을 잘못 입력했을 수 있어요."),
+        ] if bank_loaded else [],
+         "manual": "" if bank_loaded else "이 임기의 통장 거래내역을 아직 불러오지 않았어요. 거래내역 불러오기에서 엑셀을 올리면 확인할 수 있어요."},
+        {"name": "감사준비", "points": 5, "checks": [],
+         "manual": "감사 자료를 기한 안에 내고 감사에 참석하는 항목이에요. 도안은 사업 종료 3주 이내, 결산보고서·통장사본·회계장부는 정기감사 때 내요."},
+    ]}

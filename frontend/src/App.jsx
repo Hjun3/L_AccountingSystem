@@ -5,6 +5,7 @@ import AccountPage from './pages/AccountPage'
 import UsagePage from './pages/UsagePage'
 import BankImportPage from './pages/BankImportPage'
 import BudgetPage from './pages/BudgetPage'
+import AuditPage from './pages/AuditPage'
 import CalendarPage from './pages/CalendarPage'
 import DashboardPage from './pages/DashboardPage'
 import ExpenseDetailPage from './pages/ExpenseDetailPage'
@@ -41,6 +42,7 @@ function Sidebar({ user, onLogout, terms, termId, setTermId }) {
         <div className="group">계획</div>
         <NavLink to="/budget">예산·결산</NavLink>
         <NavLink to="/calendar">캘린더</NavLink>
+        <NavLink to="/audit">감사 자가 점검</NavLink>
         <NavLink to="/regulation">규정 보기</NavLink>
 
         {isAdmin(user) && (
@@ -173,6 +175,7 @@ function App() {
             <Route path="/expenses/:id/forms/:kind" element={<FormPage />} />
             <Route path="/budget" element={<BudgetPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/audit" element={<AuditPage />} />
             <Route path="/regulation" element={<RegulationPage />} />
             <Route path="/logs" element={<LogsPage />} />
             <Route path="/users" element={<UsersPage />} />
