@@ -1127,9 +1127,10 @@ def settlement_report(period_id: int):
         budgets = [dict(r) for r in conn.execute(
             "SELECT event_name, category, amount FROM budgets WHERE period_id = ?", (period_id,))]
         parents = event_parents(conn)
-    period = f"{p['name']} ({p['start_date']} ~ {p['end_date']})"
+        term = conn.execute("SELECT year FROM terms WHERE id = (SELECT term_id FROM periods WHERE id = ?)", (period_id,)).fetchone()
     start, end = p["start_date"], p["end_date"]
-    content = build_settlement(budgets, expenses, period, parents)
+    year = term["year"] if term else int(start[:4])
+    content = build_settlement(budgets, expenses, p["name"], year, parents)
     filename = f"settlement_{start}_{end}.xlsx"
     return Response(
         content,

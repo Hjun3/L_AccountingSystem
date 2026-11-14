@@ -1,125 +1,95 @@
 """결산보고서 엑셀 파일을 만든다.
 
-시트 3개: 사업별 결산(예산 대비 지출), 비목별 집계, 지출 내역
-학생회 결산서처럼 사업(단위사업)별로 비목을 나열하고 소계·합계를 붙인다.
-묶인 사업(예: MT 사전답사 → MT)은 상위 사업 옆에 붙여 쓰고, 묶음이 2개 이상 사업이면 '묶음 합계' 줄을 더한다.
+총대의원회 공식 양식(backend/templates/settlement_template.xlsx, 원본: docs/raw/(학과) 결산보고서 양식_수정.xlsx)을
+그대로 열어서 우리 데이터만 채운다. 시트: 표지, 기안서, 결산서.
+- 결산서: 단위사업마다 '소   계' 줄 1개 + 세부 줄(세부사항, 비목, 예산액, 지출액, 잔액, 지출근거, 단가, 수량)
+  지출 1건 = 세부 줄 1줄 (단가 = 금액, 수량 = 1). 예산만 있고 지출이 없는 비목도 한 줄 남긴다.
+  예산액은 그 사업·비목의 첫 줄에만 적는다 (소계가 예산과 같아지도록).
+- 오른쪽 비목별 표, 총운영비 등은 양식에 들어 있는 수식이 자동 계산한다.
+- 학과 이름, 수입(학생회비·지원금·이월액), 지출근거(제품명)는 앱에 없어서 비워 두거나 양식 그대로 둔다.
 """
 import io
+from copy import copy
 from datetime import date
+from pathlib import Path
 
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
+from openpyxl import load_workbook
 
-BOLD = Font(bold=True)
-HEADER_FILL = PatternFill("solid", fgColor="DDDDDD")
-SUBTOTAL_FILL = PatternFill("solid", fgColor="F3F3F3")
-MONEY = "#,##0"
-
-
-def _header(ws, row, titles, widths):
-    for col, (title, width) in enumerate(zip(titles, widths), start=1):
-        cell = ws.cell(row=row, column=col, value=title)
-        cell.font, cell.fill = BOLD, HEADER_FILL
-        ws.column_dimensions[cell.column_letter].width = width
+TEMPLATE = Path(__file__).parent / "templates" / "settlement_template.xlsx"
+FIRST_ROW = 13  # 결산서 시트에서 사업 블록이 시작되는 줄
+LAST_COL = 9    # A~I 열만 사업별 결산 (K열부터는 비목별 표라 건드리지 않음)
 
 
-def _rate(spent, budget):
-    return f"{round(spent / budget * 100)}%" if budget else "-"
+def _styles(ws, row):
+    return [copy(ws.cell(row=row, column=c)._style) for c in range(1, LAST_COL + 1)], ws.row_dimensions[row].height
 
 
-def build_settlement(budgets, expenses, period_text, parents=None):
-    """budgets: [{event_name, category, amount}], expenses: 기간 안의 지출 목록,
-    parents: 사업 묶음 {하위 사업: 상위 사업} → 엑셀 파일 bytes"""
+def _put_row(ws, row, style, values):
+    styles, height = style
+    for c in range(1, LAST_COL + 1):
+        cell = ws.cell(row=row, column=c)
+        cell._style = copy(styles[c - 1])
+        cell.value = values.get(c)
+    ws.row_dimensions[row].height = height
+
+
+def build_settlement(budgets, expenses, period_name, year, parents=None):
     parents = parents or {}
-    top = lambda name: parents.get(name, name)  # 묶음의 대표(상위) 사업명
-    # 사업명·비목별 지출 합계
-    spent = {}
-    for e in expenses:
-        key = (e["event_name"], e["category"])
-        spent[key] = spent.get(key, 0) + e["amount"]
+    wb = load_workbook(TEMPLATE)
+    today = date.today().strftime("%Y.%m.%d")
 
-    # 예산 줄 + 예산 없이 쓴 지출 줄을 합쳐 사업별로 묶는다
-    lines = {}
-    for b in budgets:
-        lines[(b["event_name"], b["category"])] = b["amount"]
-    for key in spent:
-        lines.setdefault(key, 0)
-    by_event = {}
-    # 같은 묶음끼리 붙어 나오게: (상위 사업, 상위 사업이 먼저, 사업명, 비목) 순서
-    for (event_name, category), budget in sorted(lines.items(), key=lambda x: (top(x[0][0]), x[0][0] != top(x[0][0]), x[0])):
-        by_event.setdefault(event_name, []).append((category, budget, spent.get((event_name, category), 0)))
+    # 표지·기안서: 연도·학기·날짜만 바꾼다 (학과 이름 'oo학과'는 직접 고치도록 그대로 둔다)
+    for name in ("표지", "기안서"):
+        for row in wb[name].iter_rows():
+            for cell in row:
+                if isinstance(cell.value, str):
+                    v = cell.value.replace("2026", str(year)).replace("2026.00.00", today)
+                    v = v.replace("0학기", period_name).replace("1학기", period_name).replace(f"{year}.00.00", today)
+                    cell.value = v
 
-    wb = Workbook()
+    ws = wb["결산서"]
+    ws["A1"] = f"{year}년도 {period_name} 00학과 결산보고서"
+    for ref in ("D7", "D8", "D9"):  # 양식의 예시 수입 금액은 지운다 (앱에 수입 자료가 없음)
+        ws[ref] = None
 
-    # 1) 사업별 결산
-    ws = wb.active
-    ws.title = "사업별 결산"
-    ws["A1"] = "결산보고서"
-    ws["A1"].font = Font(bold=True, size=14)
-    ws["A2"] = f"기간: {period_text}"
-    ws["A3"] = f"작성일: {date.today().isoformat()}"
-    _header(ws, 5, ["단위사업", "비목", "예산액", "지출액", "잔액", "집행률"], [20, 12, 14, 14, 14, 10])
-    total_budget = total_spent = 0
-    group = {"name": None, "events": 0, "budget": 0, "spent": 0}  # 지금 쓰고 있는 묶음
+    head_style, line_style = _styles(ws, FIRST_ROW), _styles(ws, FIRST_ROW + 1)
+    # 양식의 예시 사업 블록(A~I열)을 지운다
+    for rng in [r for r in ws.merged_cells.ranges if r.min_row >= FIRST_ROW and r.max_col <= LAST_COL]:
+        ws.unmerge_cells(str(rng))
+    blank = copy(ws.cell(row=ws.max_row + 5, column=1)._style)
+    for row in range(FIRST_ROW, ws.max_row + 1):
+        for c in range(1, LAST_COL + 1):
+            ws.cell(row=row, column=c).value = None
+            ws.cell(row=row, column=c)._style = copy(blank)
 
-    def close_group():
-        # 묶음에 사업이 2개 이상이면 '묶음 합계' 줄 (전체 합계에는 다시 더하지 않음)
-        if group["events"] >= 2:
-            gb, gs = group["budget"], group["spent"]
-            ws.append([f"{group['name']} 묶음 합계", "", gb, gs, gb - gs, _rate(gs, gb)])
-            for cell in ws[ws.max_row]:
-                cell.font, cell.fill = BOLD, SUBTOTAL_FILL
+    # 사업 순서: 상위 사업 바로 뒤에 묶인 하위 사업
+    names = sorted({b["event_name"] for b in budgets} | {e["event_name"] for e in expenses})
+    order = []
+    for n in sorted({parents.get(n, n) for n in names}):
+        order += [n] if n in names else []
+        order += sorted(c for c in names if parents.get(c) == n and c != n)
 
-    for event_name, items in by_event.items():
-        if top(event_name) != group["name"]:
-            close_group()
-            group.update(name=top(event_name), events=0, budget=0, spent=0)
-        label = event_name if top(event_name) == event_name else f"{event_name} ({top(event_name)} 묶음)"
-        for category, budget, used in items:
-            ws.append([label, category, budget, used, budget - used, _rate(used, budget)])
-        eb, es = sum(i[1] for i in items), sum(i[2] for i in items)
-        group.update(events=group["events"] + 1, budget=group["budget"] + eb, spent=group["spent"] + es)
-        ws.append([f"{event_name} 소계", "", eb, es, eb - es, _rate(es, eb)])
-        for cell in ws[ws.max_row]:
-            cell.font, cell.fill = BOLD, SUBTOTAL_FILL
-        total_budget, total_spent = total_budget + eb, total_spent + es
-    close_group()
-    ws.append(["합계", "", total_budget, total_spent, total_budget - total_spent, _rate(total_spent, total_budget)])
-    for cell in ws[ws.max_row]:
-        cell.font = BOLD
-    for r in ws.iter_rows(min_row=6, min_col=3, max_col=5):
-        for cell in r:
-            cell.number_format = MONEY
-
-    # 2) 비목별 집계
-    ws2 = wb.create_sheet("비목별")
-    _header(ws2, 1, ["비목", "예산액", "지출액", "잔액", "지출 비율"], [12, 14, 14, 14, 10])
-    by_category = {}
-    for (_, category), budget in lines.items():
-        b, s = by_category.get(category, (0, 0))
-        by_category[category] = (b + budget, s)
-    for (_, category), used in spent.items():
-        b, s = by_category[category]
-        by_category[category] = (b, s + used)
-    for category, (budget, used) in sorted(by_category.items(), key=lambda x: -x[1][1]):
-        share = f"{round(used / total_spent * 100)}%" if total_spent else "-"
-        ws2.append([category, budget, used, budget - used, share])
-    ws2.append(["합계", total_budget, total_spent, total_budget - total_spent, "100%" if total_spent else "-"])
-    for cell in ws2[ws2.max_row]:
-        cell.font = BOLD
-    for r in ws2.iter_rows(min_row=2, min_col=2, max_col=4):
-        for cell in r:
-            cell.number_format = MONEY
-
-    # 3) 지출 내역
-    ws3 = wb.create_sheet("지출 내역")
-    _header(ws3, 1, ["날짜", "단위사업", "비목", "지출 내용", "금액", "증빙", "총무 결정", "메모"], [12, 18, 10, 50, 12, 6, 10, 30])
-    for e in sorted(expenses, key=lambda x: (x["date"], x["id"])):
-        ws3.append([e["date"], e["event_name"], e["category"], e["description"], e["amount"],
-                    "있음" if e["has_receipt"] else "없음", {"소명": "확정"}.get(e["final_status"], e["final_status"]), e.get("memo") or ""])
-    for r in ws3.iter_rows(min_row=2, min_col=5, max_col=5):
-        for cell in r:
-            cell.number_format = MONEY
+    row = FIRST_ROW
+    for event in order:
+        lines = []
+        cats = sorted({b["category"] for b in budgets if b["event_name"] == event} |
+                      {e["category"] for e in expenses if e["event_name"] == event})
+        for cat in cats:
+            budget = sum(b["amount"] for b in budgets if b["event_name"] == event and b["category"] == cat)
+            spent = sorted((e for e in expenses if e["event_name"] == event and e["category"] == cat), key=lambda e: e["date"])
+            if not spent:
+                lines.append({2: "(지출 없음)", 3: cat, 4: budget})
+            for i, e in enumerate(spent):
+                lines.append({2: f"{e['description']} ({e['date'][5:].replace('-', '.')})", 3: cat,
+                              4: budget if i == 0 else 0, 8: e["amount"], 9: 1})
+        head, first, last = row, row + 1, row + len(lines)
+        _put_row(ws, head, head_style, {1: event, 2: "소   계", 4: f"=SUM(D{first}:D{last})", 5: f"=SUM(E{first}:E{last})",
+                                        6: f"=SUM(F{first}:F{last})", 7: "제품명", 8: "단가", 9: "수량"})
+        ws.merge_cells(start_row=head, start_column=2, end_row=head, end_column=3)
+        for r, values in enumerate(lines, start=first):
+            _put_row(ws, r, line_style, {**values, 5: f"=H{r}*I{r}", 6: f"=D{r}-E{r}"})
+        ws.merge_cells(start_row=head, start_column=1, end_row=last, end_column=1)
+        row = last + 1
 
     out = io.BytesIO()
     wb.save(out)
