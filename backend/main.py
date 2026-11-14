@@ -314,6 +314,9 @@ def init_db():
             parts = [t for t in [(r["memo"] or "").strip(), (r["explanation"] or "").strip()] if t]
             conn.execute("UPDATE expenses SET final_status = '확정', memo = ?, explanation = NULL WHERE id = ?",
                          (" / ".join(parts), r["id"]))
+        # 비목 이름을 공식 양식에 맞춤: 예전 '급량비'는 '식비'로 바꾼다
+        conn.execute("UPDATE expenses SET category = '식비' WHERE category = '급량비'")
+        conn.execute("UPDATE budgets SET category = '식비' WHERE category = '급량비'")
         # 기록에 '누가 했는지'(사용자 이름) 칸을 추가한다
         for table in ("change_logs", "decision_logs"):
             if "actor" not in [c["name"] for c in conn.execute(f"PRAGMA table_info({table})")]:

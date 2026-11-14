@@ -10,7 +10,7 @@
     {
       "period": "학기 전",
       "event_name": "MT 사전답사",
-      "category": "급량비",
+      "category": "식비",
       "amount": 50000
     },
     {
@@ -22,7 +22,7 @@
     {
       "period": "1학기",
       "event_name": "개강총회",
-      "category": "급량비",
+      "category": "식비",
       "amount": 300000
     },
     {
@@ -46,7 +46,7 @@
     {
       "period": "1학기",
       "event_name": "MT",
-      "category": "급량비",
+      "category": "식비",
       "amount": 400000
     },
     {
@@ -58,7 +58,7 @@
     {
       "period": "1학기",
       "event_name": "짝짝꿍",
-      "category": "급량비",
+      "category": "식비",
       "amount": 80000
     },
     {
@@ -70,7 +70,7 @@
     {
       "period": "1학기",
       "event_name": "중간고사 야식마차",
-      "category": "급량비",
+      "category": "식비",
       "amount": 250000
     },
     {
@@ -82,7 +82,7 @@
     {
       "period": "1학기",
       "event_name": "기말고사 야식마차",
-      "category": "급량비",
+      "category": "식비",
       "amount": 300000
     },
     {
@@ -94,7 +94,7 @@
     {
       "period": "1학기",
       "event_name": "전정대 체육대회",
-      "category": "급량비",
+      "category": "식비",
       "amount": 100000
     },
     {
@@ -118,7 +118,7 @@
     {
       "period": "1학기",
       "event_name": "소웨 문화의 밤",
-      "category": "급량비",
+      "category": "식비",
       "amount": 150000
     },
     {
@@ -166,7 +166,7 @@
     {
       "period": "2학기",
       "event_name": "동아리 체육대회",
-      "category": "급량비",
+      "category": "식비",
       "amount": 250000
     },
     {
@@ -178,7 +178,7 @@
     {
       "period": "2학기",
       "event_name": "중간고사 야식마차",
-      "category": "급량비",
+      "category": "식비",
       "amount": 250000
     },
     {
@@ -190,7 +190,7 @@
     {
       "period": "2학기",
       "event_name": "기말고사 야식마차",
-      "category": "급량비",
+      "category": "식비",
       "amount": 280000
     },
     {
@@ -220,7 +220,7 @@
     {
       "period": "2학기",
       "event_name": "일일호프",
-      "category": "급량비",
+      "category": "식비",
       "amount": 400000
     },
     {
@@ -232,7 +232,7 @@
     {
       "period": "2학기",
       "event_name": "종강총회",
-      "category": "급량비",
+      "category": "식비",
       "amount": 350000
     },
     {

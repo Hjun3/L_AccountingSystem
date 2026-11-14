@@ -71,7 +71,7 @@ function DeskScene() {
             </div>
           ))}
           <div className="lp-done">
-            <div className="h"><span>03.04 · 개강총회 · 급량비</span><span style={{ color: 'var(--ok)', fontWeight: 600 }}>● 문제 없음</span></div>
+            <div className="h"><span>03.04 · 개강총회 · 식비</span><span style={{ color: 'var(--ok)', fontWeight: 600 }}>● 문제 없음</span></div>
             <div className="t">피자 16판 [가나피자] · 320,000원</div>
             <div className="tags">
               <span>영수증 사진</span>
@@ -97,7 +97,7 @@ function ViewReceipt() {
         <span>영수증 사진으로 채우기</span><b style={{ color: 'var(--ok)' }}>읽기 완료</b>
       </div>
       <div className="lp-mini-card">
-        {[['날짜', '2026-05-15'], ['금액', '80,000원'], ['사업', '전정대 체육대회'], ['지출 항목', '급량비'], ['내용', '생수 100개, 이온음료 30개 [가나마트]']].map(([k, v]) => (
+        {[['날짜', '2026-05-15'], ['금액', '80,000원'], ['사업', '전정대 체육대회'], ['지출 항목', '수용비'], ['내용', '생수 100개, 이온음료 30개 [가나마트]']].map(([k, v]) => (
           <div key={k} className="lp-mini-row"><span style={{ color: 'var(--muted)' }}>{k}</span><span className="n">{v}</span></div>
         ))}
       </div>
@@ -345,7 +345,7 @@ function LandingPage({ onLogin, user, onGo }) {
             <div className="lp-panel lp-form">
               <div className="f"><span>날짜</span><span className="lp-type">2026-03-04</span></div>
               <div className="f"><span>금액</span><span className="lp-type d2">320,000원</span></div>
-              <div className="f"><span>사업</span><span className="lp-type d3">개강총회 · 급량비</span></div>
+              <div className="f"><span>사업</span><span className="lp-type d3">개강총회 · 식비</span></div>
               <div className="f"><span>내용</span><span className="lp-type d3">피자 16판 [가나피자]</span></div>
             </div>
 

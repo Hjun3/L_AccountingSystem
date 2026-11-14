@@ -476,7 +476,7 @@ function BudgetPage() {
                 <div className="muted" style={{ marginTop: 2 }}>새 사업도 여기서 만들어요. 사업명에 목록에 없는 새 이름을 쓰면 새 사업으로 추가돼요.</div>
               </div>
               <label>사업명 <SuggestInput list="event-names" placeholder="예: 개강총회 (새 이름도 가능)" value={form.event_name} onChange={(e) => setForm({ ...form, event_name: e.target.value })} required /></label>
-              <label>지출 항목 <SuggestInput list="categories" placeholder="예: 급량비" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required /></label>
+              <label>지출 항목 <SuggestInput list="categories" placeholder="예: 식비" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required /></label>
               <label>예산액(원) <input inputMode="numeric" placeholder="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9]/g, '') })} required /></label>
               <button type="submit">추가</button>
               <div className="muted" style={{ marginTop: 'auto' }}>한 사업에 지출 항목이 여러 개면 사업명은 그대로 두고 항목·금액만 바꿔 계속 추가하세요.</div>

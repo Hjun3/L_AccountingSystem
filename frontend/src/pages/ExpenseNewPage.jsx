@@ -158,7 +158,7 @@ function ExpenseNewPage() {
             </label>
             <label>
               <span>지출 항목{aiTag('category')}</span>
-              <SuggestInput name="category" list="categories" placeholder="예: 급량비" value={form.category} onChange={handleChange} style={ai('category')} required />
+              <SuggestInput name="category" list="categories" placeholder="예: 식비" value={form.category} onChange={handleChange} style={ai('category')} required />
             </label>
           </div>
           {/* 지출 항목 빠르게 고르기 */}
