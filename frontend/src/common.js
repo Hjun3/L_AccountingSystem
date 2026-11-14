@@ -1,7 +1,8 @@
 // 여러 페이지에서 같이 쓰는 값과 함수
 import { createContext, useContext } from 'react'
 
-export const API_URL = 'http://localhost:8000'
+// 개발할 때는 백엔드(8000 포트)를 부르고, 배포하면 같은 주소의 /api 아래를 부른다 (backend/serve.py). VITE_API_URL로 바꿀 수 있음
+export const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:8000' : '/api')
 
 // AI 점검 결과별 글자색 (한눈에 구분되도록)
 export const STATUS_COLORS = { 적합: '#1e8e3e', 주의: '#b26a00', 위반: '#d22d2d', 미점검: '#8b95a1' }

@@ -13,12 +13,12 @@ from pydantic import BaseModel
 
 import auth
 from auth import current_user, init_auth_tables
-from db import get_conn, now_text
+from db import DATA_DIR, get_conn, now_text
 from report import build_settlement
 from bank_import import BankImportError, parse_transactions
 from ai_check import RECEIPT_MIME_TYPES, REGULATION_PATH, AICheckError, check_expense, read_receipt
 
-UPLOAD_DIR = Path(__file__).parent / "uploads"  # 첨부파일 저장 폴더 (GitHub에 올리지 않음)
+UPLOAD_DIR = DATA_DIR / "uploads"  # 첨부파일 저장 폴더 (GitHub에 올리지 않음)
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".webp", ".pdf"}
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
 DEFAULT_ORG_ID = "default"  # 지금은 조직이 하나뿐이라 기본값 사용
@@ -39,12 +39,13 @@ async def security_headers(request, call_next):
     response.headers["Referrer-Policy"] = "same-origin"
     return response
 
-# React 개발 서버(5173 포트)에서 이 API를 호출할 수 있도록 허용.
+# React 개발 서버(5173 포트)에서 이 API를 호출할 수 있도록 허용. (배포하면 화면과 API가 같은 주소라 필요 없음)
+# 다른 주소를 더 허용하려면 ALLOWED_ORIGINS 환경변수에 쉼표로 적는다.
 # 로그인 쿠키를 주고받도록 allow_credentials를 켠다.
 # 이 설정을 로그인 확인보다 나중에 추가해야 바깥쪽에서 동작해서, '로그인 필요' 응답에도 허용 정보가 붙는다.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

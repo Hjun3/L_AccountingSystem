@@ -91,3 +91,23 @@ python sample_data/load_samples.py --no-ai
 
 브라우저에서 http://localhost:5173 을 열면 됩니다.
 지출 데이터는 backend/expenses.db 파일에 저장됩니다. (GitHub에는 올라가지 않음)
+
+## 배포 (Railway)
+화면과 API를 한 서버에서 함께 내보냅니다 (`Dockerfile`, `backend/serve.py`). 화면은 같은 주소의 `/api`로 API를 부릅니다.
+
+1. Railway에서 New Project → Deploy from GitHub repo → 이 저장소 선택 (루트의 `Dockerfile`로 자동 빌드)
+2. 서비스에 Volume을 추가하고 Mount path를 `/data`로 지정 (DB와 증빙 파일이 여기에 저장되어 재배포해도 남음)
+3. Variables에 추가
+   - `OPENAI_API_KEY`: OpenAI API 키
+   - `OPENAI_MODEL`: (선택) 사용할 모델
+   - `AI_MONTHLY_WARN`: (선택) 한 달 AI 사용 경고 기준, 기본 300
+   - `DATA_DIR=/data`, `COOKIE_SECURE=1`은 Dockerfile에 이미 들어 있음
+4. Settings → Networking → Generate Domain 으로 접속 주소 만들기
+5. 첫 관리자 만들기: Railway CLI로 서버에 접속해 실행
+   ```bash
+   railway ssh
+   ```
+   ```bash
+   python create_admin.py
+   ```
+6. (선택) 시연용 데이터: 같은 접속 화면에서 `python sample_data/load_samples.py --no-ai`
