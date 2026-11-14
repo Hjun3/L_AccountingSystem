@@ -9,12 +9,13 @@ import { api, CATEGORIES } from '../common'
 // - 목록은 화면 기준(position: fixed)으로 띄워서, 표 안에 있어도 표에 스크롤이 생기지 않는다.
 // 사용법은 보통 input과 같다: <SuggestInput list="categories" value={...} onChange={...} />
 
-let eventNamesRequest = null // 사업명 목록은 한 번만 불러와서 모든 입력칸이 같이 쓴다
+// 사업명 목록: 목록을 펼칠 때마다 새로 불러온다 (예산 추가로 새 사업이 생기면 바로 보이게).
+// 같은 순간에 여러 입력칸이 부르면 요청 하나를 같이 쓴다. 실패하면 빈 목록 (자동완성은 없어도 입력은 됨)
+let eventNamesRequest = null
 function loadEventNames() {
-  eventNamesRequest ||= api('/budgets/names').catch(() => {
-    eventNamesRequest = null // 실패하면 다음에 다시 시도 (자동완성은 없어도 입력은 됨)
-    return []
-  })
+  eventNamesRequest ||= api('/budgets/names')
+    .catch(() => [])
+    .finally(() => { eventNamesRequest = null })
   return eventNamesRequest
 }
 
@@ -60,8 +61,8 @@ function SuggestInput({ list, value, onChange, name, style, ...rest }) {
   }, [open])
 
   useEffect(() => {
-    if (list === 'event-names') loadEventNames().then(setOptions)
-  }, [list])
+    if (list === 'event-names' && (open || options.length === 0)) loadEventNames().then(setOptions)
+  }, [list, open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const text = String(value || '').trim()
   // 입력한 글자가 들어간 것만. 이미 목록과 똑같이 입력했으면 전체를 보여 준다
