@@ -1216,7 +1216,7 @@ def audit_check(term_id: int | None = None):
             f"category IN ({','.join('?' * len(GOODS_CATEGORIES))}) AND id NOT IN (SELECT expense_id FROM attachments)",
             GOODS_CATEGORIES)
 
-        over, unbudgeted, activity = [], [], []
+        over, unbudgeted, activity, activity_left = [], [], [], []
         for p in periods:
             data = budget_overview(conn, p["id"])
             name = data["period"]["name"]
@@ -1227,35 +1227,44 @@ def audit_check(term_id: int | None = None):
                 (data["period"]["start_date"], data["period"]["end_date"])).fetchone()["t"]
             if used > ACTIVITY_LIMIT:
                 activity.append({"text": f"{name} · 활동비 {used:,}원 (한도 {ACTIVITY_LIMIT:,}원)"})
+            # 끝난 기간에 활동비 예산이 절반 넘게 남았으면 감점 사례 (활동비 잔액 50% 이상)
+            act_budget = sum(b["amount"] for b in data["budgets"] if b["category"] == "활동비")
+            if act_budget and data["period"]["end_date"] < datetime.now().date().isoformat() and act_budget - used >= act_budget / 2:
+                activity_left.append({"text": f"{name} · 활동비 예산 {act_budget:,}원 중 {act_budget - used:,}원 남음"})
 
     bank = reconcile_stored(start, end)
     bank_loaded = bank["stored_count"] > 0
     unregistered = [{"text": f"{t['date']} · {t['content']} · {t['amount']:,}원"} for t in bank["transactions"] if not t["matched_expense_id"]]
     not_in_bank = [{"id": e["id"], "text": f"{e['date']} · {e['event_name']} · {e['amount']:,}원"} for e in bank["unmatched_expenses"]]
 
+    # 2025~2026 전자정보대학 감사 결과에서 자주 나온 실제 감점 사유 (항목별로 앱이 확인할 수 없는 것 위주)
     def check(label, rows, link=None, hint=""):
         return {"label": label, "count": len(rows), "rows": rows[:5], "link": link, "hint": hint}
 
     return {"items": [
         {"name": "공약 및 사업", "points": 10, "checks": [],
-         "manual": "공약 사업을 모두 했는지, 사업계획서를 예산 집행 전에 냈는지는 앱에서 알 수 없어요. 직접 확인해 주세요."},
+         "manual": "공약 사업을 모두 했는지는 앱에서 알 수 없어요. 예산을 안 쓴 사업도 시행 공지(오픈채팅·카드뉴스)와 현장 사진 같은 이행 증빙이 필요해요.",
+         "examples": ["사업 이행 증빙자료 미흡", "상품 수여 기준 증빙 미흡", "MT 사전답사 등 증빙자료 누락"]},
         {"name": "예·결산보고서", "points": 25, "checks": [
             check("예산을 넘긴 사업·항목", over, "/budget", "예산 초과는 감사에서 '주의' 이상이에요. 예산변경신청서를 냈는지 확인하세요."),
             check("예산에 없는 사업·항목으로 쓴 지출", unbudgeted, "/budget", "예산계획서에 없는 지출이에요. 사업명·항목 오타일 수도 있어요."),
             check("활동비 학기 한도 초과", activity, "/budget", "과 학생회 활동비는 한 학기 30만원 이하예요 (감사지침 제2항)."),
-        ]},
+            check("끝난 기간인데 활동비 예산이 절반 넘게 남음", activity_left, "/budget", "'활동비 잔액 50% 이상'은 실제 감점 사례예요. 남은 활동비는 반환해야 해요."),
+        ], "examples": ["예산변경신청서 변경사유·산출근거 누락, 문서번호 오류", "결산보고서 예산액이 마지막 예산변경신청서와 다름", "미승인 예산 사용", "결산보고서 사업 누락 (사업 칸 통째 삭제)", "표지·기안서 날짜·문서번호 오류"]},
         {"name": "영수증", "points": 30, "checks": [
             check("증빙 없는 지출", no_receipt, "/expenses?filter=증빙 없음", "영수증·사필영수증 등 증빙이 없는 지출이에요 (감사지침 제3·4항)."),
             check("확인·조치 필요인데 아직 확정 안 한 지출", pending, "/expenses", "AI가 챙길 것을 알려 준 지출이에요. 확인하고 메모를 남겨 확정하세요."),
-        ]},
+        ], "examples": ["사필영수증 날짜·비목·금액·사업명 오류", "사필영수증 제출 기한(지급 후 5일) 초과", "사필영수증 첨부자료(학생증·통장 사본·거래내역) 누락", "실물 영수증 누락"]},
         {"name": "도안", "points": 25, "checks": [
             check("사진 증빙이 하나도 없는 물품 지출 (수용비·상품비)", no_photo, None, "물품 구입은 24시간 이내 도안 촬영이 필요해요 (감사지침 제5항). 앱에 사진이 없을 뿐 따로 챙겼다면 괜찮아요."),
-        ]},
+        ], "examples": ["도안 시간 확인 불가 (네이버 시계·물품 초점 흐림)", "참여자·수령자 명단 오류, 학생회비 미납자 참여", "도안 제출 기한(사업 종료 3주) 초과", "품목 수량 확인 불가, 첨부자료 누락"]},
         {"name": "회계장부", "points": 5, "checks": [
             check("통장에는 있는데 지출로 등록 안 된 출금", unregistered, "/expenses/import", "회계장부는 통장 사본 기준으로 검토해요."),
             check("지출로는 있는데 통장에 출금이 없는 건", not_in_bank, "/expenses/import", "날짜·금액을 잘못 입력했을 수 있어요."),
         ] if bank_loaded else [],
-         "manual": "" if bank_loaded else "이 임기의 통장 거래내역을 아직 불러오지 않았어요. 거래내역 불러오기에서 엑셀을 올리면 확인할 수 있어요."},
-        {"name": "감사준비", "points": 5, "checks": [],
-         "manual": "감사 자료를 기한 안에 내고 감사에 참석하는 항목이에요. 도안은 사업 종료 3주 이내, 결산보고서·통장사본·회계장부는 정기감사 때 내요."},
+         "manual": "" if bank_loaded else "이 임기의 통장 거래내역을 아직 불러오지 않았어요. 거래내역 불러오기에서 엑셀을 올리면 확인할 수 있어요.",
+         "examples": ["회계장부 항목 오류", "통장 거래내역 일부 누락"]},
+        {"name": "감사 태도 (감사준비)", "points": 5, "checks": [],
+         "manual": "서류는 이메일로 상시 내고, 대면 서류 2부는 수시·정기감사 때 내요. 기한을 지키고, 이메일 제출본과 대면 제출본이 같은지 확인하세요.",
+         "examples": ["감사 기간 안에 서류 추가 제출", "이메일(비대면)과 대면 제출 서류 불일치", "통장 거래내역 누락"]},
     ]}

@@ -62,6 +62,14 @@ function AuditPage() {
                 )}
               </div>
             ))}
+            {item.examples?.length > 0 && (
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 12, paddingTop: 12 }}>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>실제 감점 사례 (전자정보대학 2025~2026 감사 결과) · 앱에서 확인할 수 없으니 직접 챙기세요</div>
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                  {item.examples.map((t) => <li key={t}>{t}</li>)}
+                </ul>
+              </div>
+            )}
           </section>
         ))}
       </div>
