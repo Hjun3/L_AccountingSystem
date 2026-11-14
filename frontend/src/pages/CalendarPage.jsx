@@ -84,6 +84,7 @@ function CalendarPage() {
   const daySchedules = schedules.filter((sc) => scheduleOn(sc, form.date))
   const dayExpenses = expenses.filter((exp) => exp.date === form.date)
   const moveButton = { height: 24, fontSize: 12, padding: '0 8px', flexShrink: 0 }
+  const actions = { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 } // 오른쪽 버튼 자리 ([이동] + ×)
   const deleteButton = (sc) => (
     <button
       onClick={(e) => {
@@ -161,7 +162,7 @@ function CalendarPage() {
             {daySchedules.length === 0 && dayExpenses.length === 0 ? (
               <p className="muted">일정과 지출이 없습니다.</p>
             ) : (
-              <div style={{ display: 'grid', gap: 8, marginTop: 10, fontSize: 13 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8, marginTop: 10, fontSize: 13 }}>{/* minmax(0,1fr): 긴 설명 글 때문에 목록이 카드 밖으로 넓어지지 않게 */}
                 {/* 일정: [이동]을 누르면 그 사업(일정 제목과 같은 사업명)의 지출 목록으로 */}
                 {daySchedules.map((sc) => (
                   <div key={'s' + sc.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -170,8 +171,10 @@ function CalendarPage() {
                       {sc.title}{sc.end_date && <span className="muted"> · {scheduleDays(sc)}</span>}
                       {sc.memo && <div className="muted">{sc.memo}</div>}
                     </span>
-                    <button onClick={() => navigate(`/expenses?event=${encodeURIComponent(sc.title)}`)} style={moveButton} title={`'${sc.title}' 사업의 지출 목록 보기`}>이동</button>
-                    {editable && deleteButton(sc)}
+                    <span style={actions}>
+                      <button onClick={() => navigate(`/expenses?event=${encodeURIComponent(sc.title)}`)} style={moveButton} title={`'${sc.title}' 사업의 지출 목록 보기`}>이동</button>
+                      {editable && deleteButton(sc)}
+                    </span>
                   </div>
                 ))}
                 {/* 지출: [이동]을 누르면 지출 상세로 */}
@@ -182,7 +185,10 @@ function CalendarPage() {
                       {exp.event_name} · <span className="tnum" style={{ fontWeight: 600 }}>{exp.amount.toLocaleString()}원</span>
                       <div className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exp.description}</div>
                     </span>
-                    <button onClick={() => navigate(`/expenses/${exp.id}`)} style={moveButton} title="지출 상세 보기">이동</button>
+                    <span style={actions}>
+                      <button onClick={() => navigate(`/expenses/${exp.id}`)} style={moveButton} title="지출 상세 보기">이동</button>
+                      {editable && <span style={{ width: 16 }} />}{/* 일정 줄의 × 자리만큼 비워 [이동] 위치를 맞춤 */}
+                    </span>
                   </div>
                 ))}
               </div>
