@@ -71,7 +71,7 @@ function ExpenseListPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
         <h2 style={{ marginBottom: 6 }}>지출 목록</h2>
-        <span className="muted">AI 점검은 참고용이며 최종 판단은 총무가 합니다. 점검 기준: 총학생회칙 + 추정 관행(대의원회 세칙 받기 전)</span>
+        <span className="muted">AI 점검은 참고용이며 최종 판단은 총무가 합니다. 점검 기준: 총학생회칙 + 감사 지침(총무소양교육자료·감사시행세칙)</span>
       </div>
       {error && <p style={{ color: 'var(--bad)' }}>{error}</p>}
 

@@ -350,12 +350,12 @@ function LandingPage({ onLogin, user, onGo }) {
             </div>
 
             <div className="lp-panel lp-ai">
-              <div className="who">AI 점검 · 관행 제8항</div>
+              <div className="who">AI 점검 · 감사지침 제2항</div>
               <div className="st">확인 필요</div>
-              <p>식비 집행은 괜찮아요. 다만 참가자 명단을 학생회비 납부 명단과 대조한 기록이 필요해요.</p>
+              <p>식비 집행은 괜찮아요. 다만 이 사업 식비가 예산의 45%를 넘지 않는지 확인이 필요해요.</p>
               <div className="lp-todo">
                 <span className="lp-box" />
-                <span className="t">참가자 명단 납부 대조하기</span>
+                <span className="t">사업 식비 비율 확인하기</span>
               </div>
             </div>
           </div>
@@ -380,7 +380,7 @@ function LandingPage({ onLogin, user, onGo }) {
           </div>
           <div ref={chatRef} className={`lp-chat ${chatIn ? 'in' : ''}`}>
             <div className="lp-msg ai" style={delay(0, 0.4)}>
-              <small>AI 동료 · 관행 제3항 ③</small>
+              <small>AI 동료 · 감사지침 제4항 ②</small>
               휴학생 환급 2건, 사필영수증은 있는데 받은 사람 학생증 사본이 빠져 있어요.
               <div className="todo">☐ 수령인 학생증 사본 받기</div>
             </div>

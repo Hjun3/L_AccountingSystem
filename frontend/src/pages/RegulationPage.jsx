@@ -4,7 +4,7 @@ import { api } from '../common'
 // 규정 파일 글을 화면용 덩어리로 나눈다 (파일 내용은 바꾸지 않고 보여 주는 모양만 정리)
 // - '※'로 시작하는 줄: 맨 위 안내
 // - '[제1부] …' 같은 줄: 큰 제목
-// - '총학생회칙 제78조(…)', '관행 제1항 (…)' 같은 줄: 조항 제목 (왼쪽 목차에 나옴)
+// - '총학생회칙 제78조(…)', '감사지침 제1항 (…)' 같은 줄: 조항 제목 (왼쪽 목차에 나옴)
 // - '====' 줄은 구분선이라 뺀다
 function parseRegulation(text) {
   const notes = []
@@ -14,7 +14,7 @@ function parseRegulation(text) {
     if (/^=+$/.test(line.trim())) return
     if (line.startsWith('※')) return notes.push(line.replace(/^※\s*/, ''))
     if (/^\[제\d+부\]/.test(line)) return blocks.push({ type: 'part', text: line, id: `p${i}` })
-    if (/^(총학생회칙 제\d+조|관행 제\d+항)/.test(line)) return blocks.push({ type: 'clause', text: line, id: `c${i}` })
+    if (/^(총학생회칙 제\d+조|감사지침 제\d+항)/.test(line)) return blocks.push({ type: 'clause', text: line, id: `c${i}` })
     blocks.push({ type: 'line', text: line })
   })
   return { notes, blocks }
