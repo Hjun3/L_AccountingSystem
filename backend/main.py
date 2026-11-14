@@ -1291,9 +1291,13 @@ def list_event_checks(term_id: int | None = None):
     with get_conn() as conn:
         _event_checks_table(conn)
         start, end = _term_dates(conn, term_id)
+        # 지출이 있는 사업(지출 많은 순) + 예산에만 있는 사업 (아직 지출 전이어도 미리 점검할 수 있게)
         names = [r["event_name"] for r in conn.execute(
             "SELECT event_name, COUNT(*) AS n FROM expenses WHERE deleted_at IS NULL AND date BETWEEN ? AND ? "
             "GROUP BY event_name ORDER BY n DESC, event_name", (start, end))]
+        names += [r["event_name"] for r in conn.execute(
+            "SELECT DISTINCT b.event_name FROM budgets b JOIN periods p ON p.id = b.period_id "
+            "WHERE p.start_date <= ? AND p.end_date >= ? ORDER BY b.event_name", (end, start)) if r["event_name"] not in names]
         results = {r["event_name"]: {**json.loads(r["result"]), "created_at": r["created_at"], "actor": r["actor"]}
                    for r in conn.execute("SELECT * FROM event_checks WHERE term_key = ?", (term_id or 0,))}
     return {"events": names, "results": results}
@@ -1315,8 +1319,6 @@ def run_event_check(body: EventCheckIn):
         rows = conn.execute(
             f"SELECT e.*, (SELECT COUNT(*) FROM attachments a WHERE a.expense_id = e.id) AS files FROM expenses e "
             f"WHERE deleted_at IS NULL AND event_name IN ({marks}) AND date BETWEEN ? AND ? ORDER BY date", (*names, start, end)).fetchall()
-        if not rows:
-            raise HTTPException(status_code=404, detail="이 임기에 이 사업의 지출이 없습니다.")
         budgets = conn.execute(
             f"SELECT b.event_name, b.category, SUM(b.amount) AS amount FROM budgets b JOIN periods p ON p.id = b.period_id "
             f"WHERE b.event_name IN ({marks}) AND p.start_date <= ? AND p.end_date >= ? GROUP BY b.event_name, b.category",
@@ -1326,6 +1328,8 @@ def run_event_check(body: EventCheckIn):
     lines.append("[예산]")
     lines += [f"- {b['event_name']} · {b['category']}: {b['amount']}원" for b in budgets] or ["- 예산 없음"]
     lines.append("[지출]")
+    if not rows:
+        lines.append("- 아직 지출 없음 (예산과 사업 종류를 보고 미리 준비할 서류를 알려 줄 것)")
     for r in rows:
         todos = [t["text"] for t in json.loads(r["ai_todos"] or "[]") if not t.get("done")]
         lines.append(
