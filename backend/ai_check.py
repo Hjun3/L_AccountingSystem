@@ -116,8 +116,9 @@ RECEIPT_PROMPT = """너는 영수증 사진에서 지출 정보를 읽어 내는
 사진에 보이는 내용만 읽고, 보이지 않는 값은 추측하지 마라.
 
 반드시 아래 JSON 형식만 출력하라. 다른 말은 쓰지 마라.
-{"is_receipt": true 또는 false, "date": "YYYY-MM-DD (안 보이면 빈 문자열)", "amount": 합계 금액 정수 (안 보이면 null), "store": "상호명 (안 보이면 빈 문자열)", "items": "구매 품목과 수량 요약 (예: 생수 100개, 이온음료 30개)", "event_name": "사업명 추천", "category": "지출 항목(비목) 추천"}
+{"is_receipt": true 또는 false, "date": "YYYY-MM-DD (안 보이면 빈 문자열)", "amount": 합계 금액 정수 (안 보이면 null), "store": "상호명 (안 보이면 빈 문자열)", "items": "품목명과 수량 (예: 포카리스웨트1.5L 1개, 하리보골드베렌 2개)", "event_name": "사업명 추천", "category": "지출 항목(비목) 추천"}
 영수증이 아닌 사진이면 is_receipt를 false로 하라.
+items의 품목명은 영수증에 인쇄된 글자를 한 글자씩 그대로 옮겨 적는다. 바꿔 말하거나 고치지 말고, 흐려서 읽을 수 없는 글자가 있는 품목은 읽힌 부분까지만 쓴다. 수량은 수량 칸의 숫자를 쓴다.
 event_name과 category는 사용자 메시지에 주어진 목록 안에서만 하나씩 고른다. 품목과 날짜로 판단이 어려우면 빈 문자열로 둔다."""
 
 # 지출 항목(비목) 목록: 영수증 읽기에서 추천할 때 쓴다 (화면 frontend/src/common.js의 CATEGORIES와 같게 유지)
@@ -143,7 +144,7 @@ def read_receipt(image_bytes: bytes, ext: str, event_names: list[str] | None = N
                 {"role": "system", "content": RECEIPT_PROMPT},
                 {"role": "user", "content": [
                     {"type": "text", "text": f"사업명 목록: {', '.join(event_names) or '(없음)'}\n지출 항목 목록: {', '.join(CATEGORIES)}"},
-                    {"type": "image_url", "image_url": {"url": data_url}},
+                    {"type": "image_url", "image_url": {"url": data_url, "detail": "high"}},  # 고해상도: 작은 품목 글자를 뭉개지 않게
                 ]},
             ],
             response_format={"type": "json_object"},
