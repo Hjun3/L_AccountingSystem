@@ -130,7 +130,12 @@ OpenAI 호출은 실제 비용이 들어서, 호출은 세 곳뿐입니다: 지�
 - [x] 지출 등록 → AI 점검 → 결과 표시 → 총무 결정
 - [x] 실제 OpenAI 키로 점검 결과 확인
 
-## 실행 방법
+## 직접 실행·배포하기
+배포 사이트에서 바로 확인할 수 있어서 아래는 접어 두었습니다. 직접 실행하려면 본인의 OpenAI API 키가 필요합니다 (키가 없으면 AI 점검은 '점검 못 함'으로 저장되고 나머지 기능은 동작합니다).
+
+<details>
+<summary>▶ 내 컴퓨터에서 실행하기</summary>
+
 
 먼저 API 키를 설정합니다. `backend/.env.example`을 복사해 `backend/.env`로 만들고 OpenAI API 키를 넣으세요.
 ```bash
@@ -175,7 +180,11 @@ python sample_data/load_samples.py --no-ai
 브라우저에서 http://localhost:5173 을 열면 됩니다.
 지출 데이터는 backend/expenses.db 파일에, 증빙 파일은 backend/uploads/에 저장됩니다. (GitHub에는 올라가지 않음. 환경변수 `DATA_DIR`로 저장 폴더를 바꿀 수 있음)
 
-## 배포 (Railway)
+</details>
+
+<details>
+<summary>▶ Railway에 배포하기</summary>
+
 화면과 API를 한 서버에서 함께 내보냅니다 (`Dockerfile`, `backend/serve.py`). 화면은 같은 주소의 `/api`로 API를 부릅니다.
 
 1. Railway에서 New Project → Deploy from GitHub repo → 이 저장소 선택 (루트의 `Dockerfile`로 자동 빌드)
@@ -200,3 +209,5 @@ python sample_data/load_samples.py --no-ai
    ```
 6. (선택) 시연용 데이터: 같은 접속 화면에서 `python sample_data/load_samples.py` (AI 없이 넣으려면 `--no-ai`)
    - ssh 화면에 API 키가 없으면(`echo $OPENAI_API_KEY | cut -c1-3`이 비어 있음) `read -s OPENAI_API_KEY && export OPENAI_API_KEY`로 키를 넣은 뒤 실행합니다. 키 없이 넣은 지출은 '점검 못 함'이 되며, 키를 넣고 다시 실행하면 그 지출만 다시 점검합니다.
+
+</details>
