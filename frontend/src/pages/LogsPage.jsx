@@ -4,7 +4,9 @@ import { api } from '../common'
 import Pager, { paginate } from '../components/Pager'
 
 const PAGE_SIZE = 20 // 한 쪽에 보여 줄 기록 수
-const ACTIONS = ['전체', '지출 등록', '지출 수정', '지출 삭제', '증빙 첨부', '증빙 삭제', '총무 결정']
+const ACTIONS = ['전체', '지출 등록', '지출 수정', '지출 삭제', '증빙 첨부', '증빙 삭제', '총무 결정', '예산·사업·일정 등']
+// '예산·사업·일정 등': 지출 밖의 기록 (예산, 사업 묶기, 일정, 기간, 임기, 거래내역 불러오기)
+const matches = (l, a) => a === '전체' || (a === '예산·사업·일정 등' ? !l.expense_id : l.action === a)
 
 // 기록 화면: 지출 수정·삭제, 증빙 첨부·삭제, 총무 결정을 최신순으로 모아 본다.
 // 관리자만 볼 수 있다. (서버에서도 /logs는 관리자만 허용)
@@ -18,7 +20,7 @@ function LogsPage() {
     api('/logs').then(setLogs).catch((e) => setError(e.message))
   }, [])
 
-  const shown = logs.filter((l) => filter === '전체' || l.action === filter)
+  const shown = logs.filter((l) => matches(l, filter))
   const { rows, count, current } = paginate(shown, page, PAGE_SIZE)
 
   return (
@@ -32,7 +34,7 @@ function LogsPage() {
       <div style={{ display: 'flex', gap: 4, margin: '12px 0', flexWrap: 'wrap' }}>
         {ACTIONS.map((a) => (
           <button key={a} onClick={() => { setFilter(a); setPage(1) }} className={a === filter ? 'active' : ''}>
-            {a} ({logs.filter((l) => a === '전체' || l.action === a).length})
+            {a} ({logs.filter((l) => matches(l, a)).length})
           </button>
         ))}
       </div>
@@ -40,7 +42,7 @@ function LogsPage() {
       <div className="table-box">
       <table>
         <thead>
-          <tr><th>시각</th><th>한 사람</th><th>종류</th><th>대상 지출</th><th>내용</th></tr>
+          <tr><th>시각</th><th>한 사람</th><th>종류</th><th>대상</th><th>내용</th></tr>
         </thead>
         <tbody>
           {rows.map((l, i) => (
@@ -54,7 +56,7 @@ function LogsPage() {
                     {l.expense.date} {l.expense.event_name} {l.expense.amount.toLocaleString()}원
                   </Link>
                 ) : (
-                  `#${l.expense_id}`
+                  l.expense_id ? `#${l.expense_id}` : <span className="muted">{l.target}</span>
                 )}
                 {l.expense?.deleted_at && <span style={{ color: 'var(--bad)' }}> (삭제됨)</span>}
               </td>

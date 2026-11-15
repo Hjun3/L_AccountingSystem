@@ -171,6 +171,19 @@ def init_db():
             )
             """
         )
+        # 지출 밖의 변경 기록 (예산, 사업 묶기, 일정, 기간, 임기, 통장 거래 불러오기). 지우거나 고치지 않는다
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS other_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                target TEXT NOT NULL,
+                action TEXT NOT NULL,
+                detail TEXT,
+                created_at TEXT NOT NULL,
+                actor TEXT
+            )
+            """
+        )
         # 지출에 붙인 증빙 파일 (영수증 사진 등). 실제 파일은 uploads 폴더에 저장한다
         conn.execute(
             """
@@ -367,6 +380,17 @@ def add_change_log(conn, expense_id, action, detail=""):
         "INSERT INTO change_logs (expense_id, action, detail, created_at, actor) VALUES (?, ?, ?, ?, ?)",
         (expense_id, action, detail, now_text(), actor_name()),
     )
+
+
+def add_other_log(conn, target, action, detail=""):
+    """지출 밖의 변경을 기록한다. target: 예산/사업/일정/기간/임기/통장"""
+    conn.execute("INSERT INTO other_logs (target, action, detail, created_at, actor) VALUES (?, ?, ?, ?, ?)",
+                 (target, action, detail, now_text(), actor_name()))
+
+
+def _period_name(conn, period_id):
+    r = conn.execute("SELECT p.name, t.year FROM periods p LEFT JOIN terms t ON t.id = p.term_id WHERE p.id = ?", (period_id,)).fetchone()
+    return f"{r['year']}년 {r['name']}" if r and r["year"] else (r["name"] if r else "")
 
 
 def get_active_expense(conn, expense_id):
@@ -571,7 +595,10 @@ def collect_logs(actor_username=None):
         expenses = {
             r["id"]: dict(r) for r in conn.execute("SELECT id, date, event_name, amount, description, deleted_at FROM expenses")
         }
+        others = conn.execute("SELECT id, target, action, detail, created_at, actor FROM other_logs" + where, params).fetchall()
     logs = [dict(c) for c in changes]
+    # 지출 밖의 기록은 id가 지출 기록과 겹치지 않게 큰 수를 더해 정렬에만 쓴다
+    logs += [{**dict(o), "id": 10**9 + o["id"], "expense_id": None} for o in others]
     for d in decisions:
         to = "취소" if d["to_status"] == "대기" else FINAL_LABELS.get(d["to_status"], d["to_status"])
         detail = f"{FINAL_LABELS.get(d['from_status'], d['from_status'])} → {to}" + (f" ({d['explanation']})" if d["explanation"] else "")
@@ -642,15 +669,18 @@ def create_schedule(schedule: ScheduleIn):
              datetime.now().isoformat(timespec="seconds")),
         )
         row = conn.execute("SELECT * FROM schedules WHERE id = ?", (cur.lastrowid,)).fetchone()
+        add_other_log(conn, "일정", "일정 등록", f"{schedule.date}{'~' + end_date if end_date else ''} {schedule.kind} · {title}")
     return dict(row)
 
 
 @app.delete("/schedules/{schedule_id}")
 def delete_schedule(schedule_id: int):
     with get_conn() as conn:
-        cur = conn.execute("DELETE FROM schedules WHERE id = ?", (schedule_id,))
-        if cur.rowcount == 0:
+        old = conn.execute("SELECT * FROM schedules WHERE id = ?", (schedule_id,)).fetchone()
+        if old is None:
             raise HTTPException(status_code=404, detail="해당 일정을 찾을 수 없습니다.")
+        conn.execute("DELETE FROM schedules WHERE id = ?", (schedule_id,))
+        add_other_log(conn, "일정", "일정 삭제", f"{old['date']}{'~' + old['end_date'] if old['end_date'] else ''} {old['kind']} · {old['title']}")
     return {"deleted": schedule_id}
 
 
@@ -760,6 +790,10 @@ async def import_bank_excel(file: UploadFile = File(...), password: str = Form("
         raise HTTPException(status_code=400, detail=str(e))
 
     saved = save_bank_transactions(transactions)
+    if transactions:
+        with get_conn() as conn:
+            dates = sorted(t["date"] for t in transactions)
+            add_other_log(conn, "통장", "거래내역 불러오기", f"{dates[0]}~{dates[-1]} 거래 {len(transactions)}건 중 새로 저장 {saved}건")
     # 방금 올린 파일 기간의 거래를 저장된 기준으로 다시 맞춰 본다 (전에 올린 거래와 합쳐서)
     dates = [t["date"] for t in transactions]
     result = reconcile_stored(min(dates), max(dates)) if dates else reconcile([])
@@ -900,6 +934,7 @@ def create_term(body: TermIn):
                         "INSERT INTO budgets (org_id, period_id, event_name, category, amount, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                         (DEFAULT_ORG_ID, new_periods[b["period_name"]], b["event_name"], b["category"], b["amount"], b["memo"], now_text()),
                     )
+        add_other_log(conn, "임기", "새 임기", f"{body.year}년" + (" (지난 임기 예산 구조 복사)" if body.copy_budgets_from is not None else ""))
     return list_terms()
 
 
@@ -921,8 +956,10 @@ def update_period(period_id: int, body: PeriodIn):
     if body.start_date > body.end_date:
         raise HTTPException(status_code=400, detail="시작일이 종료일보다 늦을 수 없습니다.")
     with get_conn() as conn:
-        get_period(conn, period_id)
+        old = get_period(conn, period_id)
         conn.execute("UPDATE periods SET start_date = ?, end_date = ? WHERE id = ?", (body.start_date, body.end_date, period_id))
+        add_other_log(conn, "기간", "기간 날짜 수정",
+                      f"{_period_name(conn, period_id)}: {old['start_date']}~{old['end_date']} → {body.start_date}~{body.end_date}")
         term_id = conn.execute("SELECT term_id FROM periods WHERE id = ?", (period_id,)).fetchone()["term_id"]
         return [dict(r) for r in conn.execute("SELECT * FROM periods WHERE term_id = ? ORDER BY sort_order", (term_id,))]
 
@@ -957,6 +994,7 @@ def create_budget(budget: BudgetIn):
             (DEFAULT_ORG_ID, budget.period_id, event_name, category, budget.amount, budget.memo.strip(),
              datetime.now().isoformat(timespec="seconds")),
         )
+        add_other_log(conn, "예산", "예산 추가", f"{_period_name(conn, budget.period_id)} · {event_name} · {category} {budget.amount:,}원")
         return budget_overview(conn, budget.period_id)
 
 
@@ -978,7 +1016,11 @@ def update_budget(budget_id: int, body: BudgetUpdateIn):
         raise HTTPException(status_code=400, detail="예산액은 0 이상이어야 합니다.")
     with get_conn() as conn:
         period_id = _budget_period(conn, budget_id)
+        old = conn.execute("SELECT * FROM budgets WHERE id = ?", (budget_id,)).fetchone()
         conn.execute("UPDATE budgets SET amount = ?, memo = ? WHERE id = ?", (body.amount, body.memo.strip(), budget_id))
+        if old["amount"] != body.amount:
+            add_other_log(conn, "예산", "예산 수정",
+                          f"{_period_name(conn, period_id)} · {old['event_name']} · {old['category']} {old['amount']:,}원 → {body.amount:,}원")
         return budget_overview(conn, period_id)
 
 
@@ -986,7 +1028,9 @@ def update_budget(budget_id: int, body: BudgetUpdateIn):
 def delete_budget(budget_id: int):
     with get_conn() as conn:
         period_id = _budget_period(conn, budget_id)
+        old = conn.execute("SELECT * FROM budgets WHERE id = ?", (budget_id,)).fetchone()
         conn.execute("DELETE FROM budgets WHERE id = ?", (budget_id,))
+        add_other_log(conn, "예산", "예산 삭제", f"{_period_name(conn, period_id)} · {old['event_name']} · {old['category']} {old['amount']:,}원")
         return budget_overview(conn, period_id)
 
 
@@ -1107,6 +1151,7 @@ def set_event_group(body: EventGroupIn):
             "ON CONFLICT (org_id, event_name) DO UPDATE SET parent_name = excluded.parent_name",
             (DEFAULT_ORG_ID, child, parent, now_text()),
         )
+        add_other_log(conn, "사업", "사업 묶기", f"{child} → {parent}")
     return list_event_groups()
 
 
@@ -1114,7 +1159,10 @@ def set_event_group(body: EventGroupIn):
 def delete_event_group(event_name: str):
     """묶음 풀기"""
     with get_conn() as conn:
+        old = conn.execute("SELECT parent_name FROM event_groups WHERE org_id = ? AND event_name = ?", (DEFAULT_ORG_ID, event_name)).fetchone()
         conn.execute("DELETE FROM event_groups WHERE org_id = ? AND event_name = ?", (DEFAULT_ORG_ID, event_name))
+        if old:
+            add_other_log(conn, "사업", "사업 묶기 풀기", f"{event_name} → {old['parent_name']}")
     return list_event_groups()
 
 

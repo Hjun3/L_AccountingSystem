@@ -299,7 +299,7 @@ function AccountPage({ onUserChanged }) {
                       {a.expense ? (
                         <Link to={`/expenses/${a.expense_id}`}>{a.expense.event_name} · {a.expense.amount.toLocaleString()}원</Link>
                       ) : (
-                        <span className="muted">#{a.expense_id}</span>
+                        <span className="muted">{a.expense_id ? `#${a.expense_id}` : a.target}</span>
                       )}
                       {a.detail && <div className="muted">{a.detail}</div>}
                     </div>
