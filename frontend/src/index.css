@@ -212,7 +212,6 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .regulation-toc button { all: unset; cursor: pointer; padding: 6px 8px; border-radius: var(--r-sm); font-size: 13px; color: var(--sub); line-height: 1.4; }
 .regulation-toc button:hover { background: #f2f4f6; color: var(--text); }
 .regulation-toc button.part { font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 8px; }
-.regulation-toc { position: sticky; } .regulation-toc button.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
 .regulation-body { margin-bottom: 0; padding: 24px 28px; line-height: 1.75; }
 .regulation-body h3.part { font-size: 16px; margin: 28px 0 4px; padding-bottom: 8px; border-bottom: 1px solid var(--line); scroll-margin-top: 16px; }
 .regulation-body h3.part:first-child { margin-top: 0; }
